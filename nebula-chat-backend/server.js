@@ -18,7 +18,7 @@ const server = http.createServer(app);
 
 // --- CONFIGURATION ---
 // Define the Client URL (Frontend) dynamically
-const CLIENT_URL = process.env.CLIENT_URL ||  "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new Server(server, {
   cors: {
@@ -28,19 +28,34 @@ const io = new Server(server, {
   }
 });
 
-// 1. TRUST PROXY (Required for Render/Heroku to handle HTTPS correctly)
-app.set('trust proxy', 1);
-
 app.use(express.json({ limit: '10mb' }));
 
-// 2. UPDATE COOKIE SESSION (Required for Cross-Domain Vercel <-> Render)
+// --- MIDDLEWARE ---
+
+// 1. CORS Configuration
+app.use(cors({ origin: CLIENT_URL, credentials: true }));
+
+// 2. Trust Proxy: Required for Render to handle secure cookies correctly
+app.set('trust proxy', 1);
+
+// 3. Updated Cookie Settings (Fixes Login Loop)
 app.use(cookieSession({
   maxAge: 30 * 24 * 60 * 60 * 1000,
   keys: [process.env.COOKIE_KEY],
-  sameSite: 'none',  // Allow cookie to cross between Vercel and Render
-  secure: true,      // Cookie only works on HTTPS (Required if sameSite is 'none')
-  httpOnly: true
+  sameSite: 'none', // Allow cross-site cookies (Vercel <-> Render)
+  secure: true,     // Only send over HTTPS (Required for sameSite: 'none')
+  httpOnly: true    // Prevents JavaScript from reading the cookie
 }));
+
+// Session Regeneration (Passport Fix)
+app.use((req, res, next) => {
+    if (req.session && !req.session.regenerate) req.session.regenerate = (cb) => cb();
+    if (req.session && !req.session.save) req.session.save = (cb) => cb();
+    next();
+});
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // --- HELPER: Generate Unique Color based on Name ---
 const getRandomColor = (name) => {
@@ -154,19 +169,6 @@ const sendWelcomeEmail = async (toEmail, name, shareId) => {
   };
   transporter.sendMail(mailOptions).catch(err => console.error("Email Error:", err));
 };
-
-// --- MIDDLEWARE ---
-// Updated CORS to use dynamic CLIENT_URL
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
-
-app.use(cookieSession({ maxAge: 30 * 24 * 60 * 60 * 1000, keys: [process.env.COOKIE_KEY] }));
-app.use((req, res, next) => {
-    if (req.session && !req.session.regenerate) req.session.regenerate = (cb) => cb();
-    if (req.session && !req.session.save) req.session.save = (cb) => cb();
-    next();
-});
-app.use(passport.initialize());
-app.use(passport.session());
 
 // --- AUTH & AVATAR GENERATION ---
 passport.use(new GoogleStrategy({
