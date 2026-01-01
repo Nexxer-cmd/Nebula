@@ -28,36 +28,43 @@ const io = new Server(server, {
   }
 });
 
-app.use(express.json({ limit: '10mb' }));
+// --- MIDDLEWARE SECTION (ORDER MATTERS) ---
 
-// --- MIDDLEWARE ---
-
-// 1. CORS Configuration
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
-
-// 2. Trust Proxy: Required for Render to handle secure cookies correctly
+// 1. Trust Proxy (Required for Render)
 app.set('trust proxy', 1);
 
-// 3. Updated Cookie Settings (Fixes Login Loop)
+// 2. CORS (Allow Frontend to connect)
+app.use(cors({ origin: CLIENT_URL, credentials: true }));
+
+// 3. Body Parser
+app.use(express.json({ limit: '10mb' }));
+
+// 4. Secure Cookie Session (Fixes Login Loop)
 app.use(cookieSession({
-  maxAge: 30 * 24 * 60 * 60 * 1000,
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   keys: [process.env.COOKIE_KEY],
   sameSite: 'none', // Allow cross-site cookies (Vercel <-> Render)
   secure: true,     // Only send over HTTPS (Required for sameSite: 'none')
   httpOnly: true    // Prevents JavaScript from reading the cookie
 }));
 
-// Session Regeneration (Passport Fix)
+// 5. Passport Initialization
 app.use((req, res, next) => {
     if (req.session && !req.session.regenerate) req.session.regenerate = (cb) => cb();
     if (req.session && !req.session.save) req.session.save = (cb) => cb();
     next();
 });
-
 app.use(passport.initialize());
 app.use(passport.session());
 
-// --- HELPER: Generate Unique Color based on Name ---
+
+// --- DATABASE CONNECTION ---
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.log('❌ MongoDB Error:', err));
+
+
+// --- HELPER FUNCTIONS ---
 const getRandomColor = (name) => {
   const colors = [
     'F44336', 'E91E63', '9C27B0', '673AB7', '3F51B5', '2196F3', 
@@ -70,6 +77,25 @@ const getRandomColor = (name) => {
   }
   return colors[Math.abs(hash) % colors.length];
 };
+
+const generateShareId = () => 'NEB-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
+
+const sendWelcomeEmail = async (toEmail, name, shareId) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+  const mailOptions = {
+    from: `"Nebula Chat" <${process.env.EMAIL_USER}>`,
+    to: toEmail,
+    subject: 'Welcome to Nebula Chat! ✨',
+    html: `<h3>Welcome ${name}!</h3><p>Your Share ID is: <b>${shareId}</b></p>`
+  };
+  transporter.sendMail(mailOptions).catch(err => console.error("Email Error:", err));
+};
+
 
 // --- SOCKET.IO LOGIC ---
 let onlineUsers = [];
@@ -123,11 +149,8 @@ io.on("connection", (socket) => {
   });
 });
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.log('❌ MongoDB Error:', err));
 
-// --- SCHEMAS ---
+// --- SCHEMAS & MODELS ---
 const UserSchema = new mongoose.Schema({
   googleId: { type: String, index: true },
   displayName: String,
@@ -153,24 +176,8 @@ MessageSchema.index({ sender: 1, receiver: 1, timestamp: 1 });
 MessageSchema.index({ receiver: 1, sender: 1, timestamp: 1 });
 const Message = mongoose.model('Message', MessageSchema);
 
-// --- UTILS ---
-const generateShareId = () => 'NEB-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-});
-const sendWelcomeEmail = async (toEmail, name, shareId) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
-  const mailOptions = {
-    from: `"Nebula Chat" <${process.env.EMAIL_USER}>`,
-    to: toEmail,
-    subject: 'Welcome to Nebula Chat! ✨',
-    html: `<h3>Welcome ${name}!</h3><p>Your Share ID is: <b>${shareId}</b></p>`
-  };
-  transporter.sendMail(mailOptions).catch(err => console.error("Email Error:", err));
-};
 
-// --- AUTH & AVATAR GENERATION ---
+// --- AUTH STRATEGY ---
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -180,12 +187,9 @@ passport.use(new GoogleStrategy({
     try {
       let user = await User.findOne({ googleId: profile.id });
       if (!user) {
-        // --- NEW: Avatar Logic ---
         const googlePic = profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null;
         const color = getRandomColor(profile.displayName);
-        // Fallback to UI Avatars if Google Pic is missing
         const finalAvatar = googlePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=${color}&color=fff&rounded=true&bold=true`;
-        // -------------------------
 
         user = await new User({
           googleId: profile.id, displayName: profile.displayName,
@@ -202,10 +206,11 @@ passport.use(new GoogleStrategy({
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser((id, done) => User.findById(id).then(u => done(null, u)));
 
-// --- ROUTES ---
+
+// --- API ROUTES ---
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-// Updated Callback to redirect to CLIENT_URL
+// Redirect to CLIENT_URL (Vercel) after login
 app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => res.redirect(CLIENT_URL));
 
 app.get('/api/logout', (req, res, next) => req.logout(err => err ? next(err) : res.redirect('/')));
@@ -287,7 +292,6 @@ app.get('/api/messages/:contactId', async (req, res) => {
   } catch (err) { res.status(500).send(err); }
 });
 
-// Updated Root Redirect to CLIENT_URL
 app.get('/', (req, res) => res.redirect(CLIENT_URL));
 
 const PORT = process.env.PORT || 5000;
