@@ -17,7 +17,8 @@ const app = express();
 const server = http.createServer(app);
 
 // --- CONFIGURATION ---
-// Define the Client URL (Frontend) dynamically
+// If CLIENT_URL is not set in Render, it defaults to localhost (which breaks online)
+// Make sure you added CLIENT_URL in Render Dashboard!
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new Server(server, {
@@ -28,27 +29,27 @@ const io = new Server(server, {
   }
 });
 
-// --- MIDDLEWARE SECTION (ORDER MATTERS) ---
+// --- MIDDLEWARE SECTION (Fixed Order) ---
 
-// 1. Trust Proxy (Required for Render)
+// 1. Trust Proxy (Required for Render https)
 app.set('trust proxy', 1);
 
-// 2. CORS (Allow Frontend to connect)
+// 2. CORS (Allow Vercel to connect)
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 
 // 3. Body Parser
 app.use(express.json({ limit: '10mb' }));
 
-// 4. Secure Cookie Session (Fixes Login Loop)
+// 4. Secure Cookie Session (This MUST be the only one!)
 app.use(cookieSession({
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   keys: [process.env.COOKIE_KEY],
-  sameSite: 'none', // Allow cross-site cookies (Vercel <-> Render)
-  secure: true,     // Only send over HTTPS (Required for sameSite: 'none')
-  httpOnly: true    // Prevents JavaScript from reading the cookie
+  sameSite: 'none', // Critical for Vercel <-> Render connection
+  secure: true,     // Critical for HTTPS
+  httpOnly: true
 }));
 
-// 5. Passport Initialization
+// 5. Passport
 app.use((req, res, next) => {
     if (req.session && !req.session.regenerate) req.session.regenerate = (cb) => cb();
     if (req.session && !req.session.save) req.session.save = (cb) => cb();
@@ -58,7 +59,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 
-// --- DATABASE CONNECTION ---
+// --- DATABASE ---
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.log('❌ MongoDB Error:', err));
@@ -97,7 +98,7 @@ const sendWelcomeEmail = async (toEmail, name, shareId) => {
 };
 
 
-// --- SOCKET.IO LOGIC ---
+// --- SOCKET.IO ---
 let onlineUsers = [];
 
 const addUser = (userId, socketId) => {
@@ -150,7 +151,7 @@ io.on("connection", (socket) => {
 });
 
 
-// --- SCHEMAS & MODELS ---
+// --- MODELS ---
 const UserSchema = new mongoose.Schema({
   googleId: { type: String, index: true },
   displayName: String,
@@ -207,10 +208,10 @@ passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser((id, done) => User.findById(id).then(u => done(null, u)));
 
 
-// --- API ROUTES ---
+// --- ROUTES ---
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-// Redirect to CLIENT_URL (Vercel) after login
+// Redirect to frontend (uses CLIENT_URL from env)
 app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => res.redirect(CLIENT_URL));
 
 app.get('/api/logout', (req, res, next) => req.logout(err => err ? next(err) : res.redirect('/')));
