@@ -7,7 +7,8 @@ interface LoginScreenProps {
 
 // --- DEFINE API URL (Critical for Online Deployment) ---
 // This checks if VITE_API_URL is set (Online). If not, it falls back to localhost (Offline).
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// ⚠️ HARDCODE YOUR RENDER URL HERE
+const API_URL = "https://nebula-jxl8.onrender.com";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
