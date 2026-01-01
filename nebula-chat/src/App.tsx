@@ -15,7 +15,7 @@ import ProfileDetailsModal from './components/ProfileDetailsModal';
 import SettingsModal from './components/SettingsModal';
 
 // CHANGE: Define API URL based on environment variables
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000" || "https://nebula-jxl8.onrender.com";
 
 function App() {
   const { 
