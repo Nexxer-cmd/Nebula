@@ -18,7 +18,7 @@ const server = http.createServer(app);
 
 // --- CONFIGURATION ---
 // Define the Client URL (Frontend) dynamically
-const CLIENT_URL = process.env.CLIENT_URL ||  "https://nebula-two-phi.vercel.app";
+const CLIENT_URL = process.env.CLIENT_URL ||  "http://localhost:5173";
 
 const io = new Server(server, {
   cors: {
