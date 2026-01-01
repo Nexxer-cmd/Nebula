@@ -28,7 +28,19 @@ const io = new Server(server, {
   }
 });
 
+// 1. TRUST PROXY (Required for Render/Heroku to handle HTTPS correctly)
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '10mb' }));
+
+// 2. UPDATE COOKIE SESSION (Required for Cross-Domain Vercel <-> Render)
+app.use(cookieSession({
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+  keys: [process.env.COOKIE_KEY],
+  sameSite: 'none',  // Allow cookie to cross between Vercel and Render
+  secure: true,      // Cookie only works on HTTPS (Required if sameSite is 'none')
+  httpOnly: true
+}));
 
 // --- HELPER: Generate Unique Color based on Name ---
 const getRandomColor = (name) => {
