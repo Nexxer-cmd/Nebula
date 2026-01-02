@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import { X, Phone, Video, MessageSquare, Info } from 'lucide-react';
 import type { Theme, User } from '../types';
 

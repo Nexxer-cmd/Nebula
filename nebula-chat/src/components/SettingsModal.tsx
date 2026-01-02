@@ -68,7 +68,8 @@ export default function SettingsModal({ user, theme, onClose, onUpdate }: Settin
                 alt="Profile" 
                 className="w-32 h-32 rounded-full object-cover border-4 border-gray-200 shadow-md group-hover:opacity-90 transition-opacity"
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transition-all">
+              {/* removed transition-opacity transition-all */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 "> 
                 <Camera className="text-white" size={32} />
               </div>
             </div>

@@ -1,8 +1,8 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, Phone, Video, ArrowLeft, LogOut, Sun, Moon, Users, Star, Settings, XCircle, Ban, Sparkles, UserPlus, PhoneMissed, HelpCircle } from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Search, MoreVertical, Phone, Video, ArrowLeft, LogOut, Sun, Moon, Users, Settings, XCircle, Ban, Sparkles, UserPlus, PhoneMissed, HelpCircle } from 'lucide-react'; // Removed Star
 
 import { useChat } from './hooks/useChat';
-import { formatRelativeTime, formatLastSeen } from './utils'; 
+import { formatLastSeen } from './utils';  // Removed formatRelativeTime
 import LoginScreen from './components/LoginScreen';
 import ChatItem from './components/ChatItem';
 import MessageBubble from './components/MessageBubble';
@@ -15,13 +15,11 @@ import ProfileDetailsModal from './components/ProfileDetailsModal';
 import SettingsModal from './components/SettingsModal';
 
 // CHANGE: Define API URL based on environment variables
-// ⚠️ HARDCODE YOUR RENDER URL HERE
-// const API_URL = "https://nebula-jxl8.onrender.com";
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "https://nebula-jxl8.onrender.com";
 
 function App() {
-  const { 
-    user, setUser, activeChatId, setActiveChatId, contacts, messages, theme, toggleTheme,
+  const { // removed setUser
+    user, activeChatId, setActiveChatId, contacts, messages, theme, toggleTheme,
     inputText, setInputText, searchTerm, setSearchTerm, replyingTo, setReplyingTo, smartReplies,
     activeContact, handleSendMessage, callStatus, startCall, endCall, callType, answerCall,
     showSidebarMenu, setShowSidebarMenu, viewingProfile, setViewingProfile,    
@@ -81,7 +79,8 @@ function App() {
     if (aiContact) setActiveChatId(aiContact.id);
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} />;
+  // Fixed: LoginScreen no longer takes props
+  if (!user) return <LoginScreen />;
 
   return (
     <div className="flex h-screen overflow-hidden font-sans relative transition-colors duration-300" style={{ backgroundColor: theme.bg }}>
@@ -137,7 +136,6 @@ function App() {
                         </div>
                         
                         <div className="p-2 space-y-1">
-                           {/* Settings Button with GLOW */}
                            <button 
                              onClick={() => { setShowSettings(true); setShowSidebarMenu(false); }} 
                              className="flex items-center gap-3 px-4 py-3 w-full text-sm font-medium transition-all rounded-xl hover:bg-indigo-50 text-gray-700 hover:text-indigo-600 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)]"
@@ -146,7 +144,6 @@ function App() {
                              <Settings size={18}/> Settings
                            </button>
 
-                           {/* Help Button with GLOW */}
                            <button 
                              onClick={() => { alert("Help & Support coming soon!"); setShowSidebarMenu(false); }}
                              className="flex items-center gap-3 px-4 py-3 w-full text-sm font-medium transition-all rounded-xl hover:bg-indigo-50 text-gray-700 hover:text-indigo-600 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)]"
@@ -158,7 +155,6 @@ function App() {
                         
                         <div className="h-px mx-2 my-1" style={{backgroundColor: theme.border}}></div>
                         <div className="p-2">
-                          {/* CHANGE: Use dynamic API_URL for logout */}
                           <button onClick={() => window.open(`${API_URL}/api/logout`, '_self')} className="flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 w-full text-sm font-medium transition-all rounded-xl hover:shadow-md hover:shadow-red-500/10"><LogOut size={18}/> Logout</button>
                         </div>
                     </div>
@@ -172,10 +168,8 @@ function App() {
             </div>
         </div>
 
-        {/* CHAT LIST (FIXED HOVER PADDING) */}
         <div className="flex-1 overflow-y-auto custom-scrollbar relative px-2"> 
             {contacts.filter(c => !c.isAI).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(contact => (
-                    // Added 'mx-2' and 'rounded-xl' to fix hover bleeding
                     <div key={contact.id} className="relative group my-1 rounded-xl overflow-hidden mx-1">
                         <div onClick={(e) => { e.stopPropagation(); setPreviewProfile(contact); }} className="absolute left-3 top-3 w-12 h-12 z-20 cursor-pointer rounded-full transition-all hover:opacity-80"></div>
                         <ChatItem contact={contact} onClick={() => setActiveChatId(contact.id)} isActive={activeChatId === contact.id} theme={theme} />

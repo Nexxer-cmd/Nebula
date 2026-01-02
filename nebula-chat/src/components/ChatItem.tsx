@@ -1,5 +1,6 @@
-import React from 'react';
-import { Image, Video, FileText, Camera } from 'lucide-react';
+// import React from 'react';
+// import { Image, Video, FileText, Camera } from 'lucide-react';
+import {Video, FileText, Camera } from 'lucide-react';
 import type { Theme } from '../types';
 
 interface ChatItemProps {

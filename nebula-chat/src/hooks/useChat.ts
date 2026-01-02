@@ -1,11 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES, CURRENT_USER_ID } from '../constants';
-import { callGemini, formatTime, formatRelativeTime } from '../utils';
+import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES } from '../constants'; // Removed CURRENT_USER_ID
+import { formatRelativeTime } from '../utils'; // Removed callGemini, formatTime
 
 // CHANGE: Define API URL based on environment variables
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-// const API_URL = "https://nebula-jxl8.onrender.com";
 
 export const useChat = () => {
   const [user, setUser] = useState<any>(null);
@@ -25,7 +24,7 @@ export const useChat = () => {
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, any>>({});
-  const [smartReplies, setSmartReplies] = useState<string[]>([]);
+  const [smartReplies] = useState<string[]>([]); // Removed unused setSmartReplies
   const [showSidebarMenu, setShowSidebarMenu] = useState(false);
   
   // Call State
@@ -42,7 +41,6 @@ export const useChat = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        // CHANGE: Use API_URL
         const res = await fetch(`${API_URL}/api/current_user`, { credentials: 'include' });
         if (res.ok) {
            const userData = await res.json();
@@ -53,7 +51,6 @@ export const useChat = () => {
                about: userData.bio || 'Hey!', isAI: false 
              });
              
-             // CHANGE: Use API_URL for Socket
              socket.current = io(API_URL);
              socket.current.emit("addUser", userData._id);
 
@@ -108,7 +105,6 @@ export const useChat = () => {
   const fetchMessages = useCallback(async (contactId: string) => {
     if (!user || !contactId || contactId === 'nebula-ai') return;
     try {
-      // CHANGE: Use API_URL
       const res = await fetch(`${API_URL}/api/messages/${contactId}`, { credentials: 'include' });
       if (res.ok) {
         const dbMessages = await res.json();
@@ -138,7 +134,6 @@ export const useChat = () => {
         const bodyData: any = { receiverId: activeChatId, text: content, type: type };
         if (callDetails) bodyData.callDetails = callDetails;
         
-        // CHANGE: Use API_URL
         const res = await fetch(`${API_URL}/api/messages/send`, {
             method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
             body: JSON.stringify(bodyData)
@@ -195,7 +190,6 @@ export const useChat = () => {
 
   const addContactByCode = useCallback(async (shareCode: string) => {
     try {
-        // CHANGE: Use API_URL
         const res = await fetch(`${API_URL}/api/contacts/add`, {
             method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ targetShareId: shareCode })
         });
@@ -207,10 +201,8 @@ export const useChat = () => {
     } catch (e) { alert("Connection error"); }
   }, []);
 
-  // --- NEW: PROFILE UPDATE FUNCTION ---
   const updateMyProfile = useCallback(async (updates: { displayName: string; bio: string; avatar: string }) => {
     try {
-      // CHANGE: Use API_URL
       const res = await fetch(`${API_URL}/api/user/update`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Phone, Info, Mail, Save, Camera, Pencil, Check, Trash2, Bell, Ban, Heart, BellOff, Clock } from 'lucide-react';
+import { X, Phone, Info, Save, Camera, Pencil, Check, Trash2, Bell, Ban, Heart, BellOff } from 'lucide-react'; // Removed Mail, Clock
 import type { Theme, User } from '../types';
 import { CURRENT_USER_ID, DEFAULT_AVATAR } from '../constants';
 
@@ -77,7 +77,7 @@ export default function ProfilePanel({ contact, onClose, theme, onUpdate }: Prof
     }
   };
 
-  const confirmMute = (duration: string) => {
+  const confirmMute = () => { // Removed unused duration parameter
       onUpdate({ ...contact, muted: true });
       setShowMuteMenu(false);
   };

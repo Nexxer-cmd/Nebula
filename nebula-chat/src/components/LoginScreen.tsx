@@ -1,19 +1,12 @@
-import React from 'react';
 import { MessageSquare, Heart } from 'lucide-react';
 
-interface LoginScreenProps {
-  onLogin: (user: any) => void;
-}
-
-// --- DEFINE API URL (Critical for Online Deployment) ---
-// This checks if VITE_API_URL is set (Online). If not, it falls back to localhost (Offline).
-// ⚠️ HARDCODE YOUR RENDER URL HERE
+// ⚠️ HARDCODED RENDER URL (TO FIX THE ISSUE)
 const API_URL = "https://nebula-jxl8.onrender.com";
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen() {
 
   const handleGoogleLogin = () => {
-    // --- FIX: Use the dynamic API_URL variable instead of hardcoded localhost ---
+    // ⚠️ FIXED: Point to Render, NOT localhost
     window.open(`${API_URL}/auth/google`, "_self");
   };
 

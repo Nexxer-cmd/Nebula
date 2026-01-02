@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import { Check, CheckCheck, Reply, Phone, Video, PhoneMissed, PhoneIncoming, PhoneOutgoing } from 'lucide-react'; 
 import type { Theme } from '../types';
 

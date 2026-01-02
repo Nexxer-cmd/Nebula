@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Phone, Info, Mail, Save, Camera, Pencil, Check, Trash2, Ban, Bell, Heart, BellOff, Clock } from 'lucide-react';
+import { X, Phone, Info, Mail, Camera, Pencil, Check, Ban, Bell, Heart, BellOff, Clock } from 'lucide-react'; // Removed Save, Trash2
 import type { Theme, User } from '../types';
-import { CURRENT_USER_ID, DEFAULT_AVATAR } from '../constants';
+import { CURRENT_USER_ID } from '../constants'; // Removed DEFAULT_AVATAR
 
 const MuteDurationModal = ({ onClose, onConfirm, theme }: { onClose: () => void, onConfirm: (label: string) => void, theme: Theme }) => {
   const options = [
@@ -65,8 +65,6 @@ export default function ProfileDetailsModal({ contact, onClose, theme, onUpdate 
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0] && isMe) {
-      // In a real app, upload this file to server. Here we assume URL.createObjectURL for preview.
-      // Ideally, you should use the same upload logic as SettingsModal
       onUpdate({ ...contact, avatar: URL.createObjectURL(e.target.files[0]) });
     }
   };
@@ -79,7 +77,7 @@ export default function ProfileDetailsModal({ contact, onClose, theme, onUpdate 
     }
   };
 
-  const confirmMute = (durationLabel: string) => {
+  const confirmMute = () => { // Removed unused durationLabel parameter
     onUpdate({ ...contact, muted: true });
     setShowMuteMenu(false);
   };
