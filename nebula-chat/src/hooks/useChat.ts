@@ -229,6 +229,33 @@ export const useChat = () => {
       return false;
     }
   }, []);
+  // --- NEW: Function to Fetch Protected Data ---
+  const fetchProtectedData = useCallback(async () => {
+    try {
+      console.log("Testing connection to backend...");
+      
+      // We use credentials: 'include' instead of Bearer tokens
+      const res = await fetch(`${API_URL}/api/protected-data`, {
+        method: 'GET',
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        credentials: 'include' // <--- CRITICAL: Sends your login cookie
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log("Protected Data:", data);
+      alert(`Success! Backend connected.\nMessage: ${data.message}`);
+      
+    } catch (error) {
+      console.error('Error:', error);
+      alert("Failed to connect. You might be logged out.");
+    }
+  }, []);
 
   const toggleTheme = () => {
     const newTheme = currentThemeId === 'light' ? 'dark' : 'light';
@@ -242,6 +269,6 @@ export const useChat = () => {
     handleSendMessage, callStatus, startCall, endCall, callType, answerCall,
     showSidebarMenu, setShowSidebarMenu, viewingProfile, setViewingProfile,
     previewProfile, setPreviewProfile, detailedProfile, setDetailedProfile,
-    handleUpdateContact, addContactByCode, updateMyProfile
+    handleUpdateContact, addContactByCode, updateMyProfile ,fetchProtectedData
   };
 };

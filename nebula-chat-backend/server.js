@@ -292,6 +292,21 @@ app.get('/api/messages/:contactId', async (req, res) => {
     res.send(messages);
   } catch (err) { res.status(500).send(err); }
 });
+// --- NEW: Protected Data Route ---
+app.get('/api/protected-data', (req, res) => {
+  // Check if the user is logged in (Passport session)
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized! You are not logged in." });
+  }
+  
+  // If logged in, send back secret data
+  res.json({ 
+    success: true,
+    message: "Secure connection established!", 
+    userEmail: req.user.email,
+    timestamp: new Date()
+  });
+});
 
 app.get('/', (req, res) => res.redirect(CLIENT_URL));
 

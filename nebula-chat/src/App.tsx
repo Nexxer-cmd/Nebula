@@ -1,8 +1,8 @@
-import { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, Phone, Video, ArrowLeft, LogOut, Sun, Moon, Users, Settings, XCircle, Ban, Sparkles, UserPlus, PhoneMissed, HelpCircle } from 'lucide-react'; // Removed Star
+import  { useRef, useEffect, useState } from 'react';
+import { Search, MoreVertical, Phone, Video, ArrowLeft, LogOut, Sun, Moon, Users, Settings, XCircle, Ban, Sparkles, UserPlus, PhoneMissed, HelpCircle } from 'lucide-react';
 
 import { useChat } from './hooks/useChat';
-import { formatLastSeen } from './utils';  // Removed formatRelativeTime
+import {formatLastSeen } from './utils'; 
 import LoginScreen from './components/LoginScreen';
 import ChatItem from './components/ChatItem';
 import MessageBubble from './components/MessageBubble';
@@ -15,16 +15,17 @@ import ProfileDetailsModal from './components/ProfileDetailsModal';
 import SettingsModal from './components/SettingsModal';
 
 // CHANGE: Define API URL based on environment variables
-const API_URL = import.meta.env.VITE_API_URL || "https://nebula-jxl8.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL ||  "http://localhost:5000";
 
 function App() {
-  const { // removed setUser
+  const { 
     user, activeChatId, setActiveChatId, contacts, messages, theme, toggleTheme,
     inputText, setInputText, searchTerm, setSearchTerm, replyingTo, setReplyingTo, smartReplies,
     activeContact, handleSendMessage, callStatus, startCall, endCall, callType, answerCall,
     showSidebarMenu, setShowSidebarMenu, viewingProfile, setViewingProfile,    
     previewProfile, setPreviewProfile, detailedProfile, setDetailedProfile,  
-    handleUpdateContact, addContactByCode, updateMyProfile
+    handleUpdateContact, addContactByCode, updateMyProfile,
+    fetchProtectedData // <--- ADDED THIS
   } = useChat();
 
   const [showChatMenu, setShowChatMenu] = useState(false);
@@ -79,7 +80,6 @@ function App() {
     if (aiContact) setActiveChatId(aiContact.id);
   };
 
-  // Fixed: LoginScreen no longer takes props
   if (!user) return <LoginScreen />;
 
   return (
@@ -150,6 +150,16 @@ function App() {
                              style={{ color: theme.textMain }}
                            >
                              <HelpCircle size={18}/> Help & Support
+                           </button>
+
+                           {/* --- NEW: Test Connection Button --- */}
+                           <button 
+                             onClick={() => { fetchProtectedData(); setShowSidebarMenu(false); }}
+                             className="flex items-center gap-3 px-4 py-3 w-full text-sm font-medium transition-all rounded-xl hover:bg-indigo-50 text-gray-700 hover:text-indigo-600"
+                             style={{ color: theme.textMain }}
+                           >
+                             <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[10px] font-bold">?</div> 
+                             Test Connection
                            </button>
                         </div>
                         
