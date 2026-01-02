@@ -16,7 +16,8 @@ import SettingsModal from './components/SettingsModal';
 
 // CHANGE: Define API URL based on environment variables
 // ⚠️ HARDCODE YOUR RENDER URL HERE
-const API_URL = "https://nebula-jxl8.onrender.com";
+// const API_URL = "https://nebula-jxl8.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function App() {
   const { 

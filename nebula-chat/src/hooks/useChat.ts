@@ -4,8 +4,8 @@ import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES, CURRENT_USER_ID } from '../
 import { callGemini, formatTime, formatRelativeTime } from '../utils';
 
 // CHANGE: Define API URL based on environment variables
-// const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const API_URL = "https://nebula-jxl8.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// const API_URL = "https://nebula-jxl8.onrender.com";
 
 export const useChat = () => {
   const [user, setUser] = useState<any>(null);
