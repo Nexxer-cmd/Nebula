@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react'; // removed React, 
 import { Mic, MicOff, Video, VideoOff, PhoneOff } from 'lucide-react';
 import type { User } from '../types';
 
