@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES } from '../constants'; // Removed CURRENT_USER_ID
-import { formatRelativeTime } from '../utils'; // Removed callGemini, formatTime
+import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES } from '../constants';
+import { formatRelativeTime } from '../utils';
 
-// CHANGE: Define API URL based on environment variables
+// Define API URL based on environment variables
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const useChat = () => {
@@ -24,7 +24,7 @@ export const useChat = () => {
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, any>>({});
-  const [smartReplies] = useState<string[]>([]); // Removed unused setSmartReplies
+  const [smartReplies] = useState<string[]>([]);
   const [showSidebarMenu, setShowSidebarMenu] = useState(false);
   
   // Call State
@@ -37,71 +37,99 @@ export const useChat = () => {
   const theme = THEMES[currentThemeId];
   const activeContact = useMemo(() => contacts.find(c => c.id === activeChatId), [contacts, activeChatId]);
 
-  // Auth & Socket
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/current_user`, { credentials: 'include' });
-        if (res.ok) {
-           const userData = await res.json();
-           if (userData && userData.googleId) {
-             setUser({
-               id: userData._id, name: userData.displayName, avatar: userData.avatar,
-               email: userData.email, shareId: userData.shareId, status: 'online', 
-               about: userData.bio || 'Hey!', isAI: false 
-             });
-             
-             socket.current = io(API_URL);
-             socket.current.emit("addUser", userData._id);
+  // --- 1. Fetch Current User (Handles 401 Gracefully) ---
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/current_user`, { credentials: 'include' });
+      
+      // Handle Unauthorized (Not Logged In)
+      if (res.status === 401) {
+        setUser(null);
+        return;
+      }
 
-             socket.current.on("incomingCall", ({ senderId, type }: any) => {
-                 setCallStatus('incoming');
-                 setCallType(type);
-                 setActiveChatId(senderId);
-             });
+      if (res.ok) {
+        const userData = await res.json();
+        if (userData && userData.googleId) {
+          // Map DB User to Client State
+          setUser({
+            id: userData._id, name: userData.displayName, avatar: userData.avatar,
+            email: userData.email, shareId: userData.shareId, status: 'online', 
+            about: userData.bio || 'Hey!', isAI: false 
+          });
 
-             socket.current.on("callAccepted", () => {
-                 setCallStatus('connected');
-                 callStartTime.current = Date.now();
-             });
-
-             socket.current.on("callEnded", () => {
-                 setCallStatus('ended');
-                 setTimeout(() => setCallStatus('idle'), 1000);
-             });
-
-             socket.current.on("userOffline", () => {
-                 alert("User is offline or not reachable!");
-                 setCallStatus('idle');
-             });
-
-             if (userData.contacts?.length > 0) {
-                const dbContacts = userData.contacts.map((c: any) => {
-                    let lastMsgPreview = "No messages yet", lastMsgTime = "", lastMsgType = 'text';
-                    if (c.lastMessageDoc) {
-                        lastMsgType = c.lastMessageDoc.type || 'text';
-                        lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
-                        if (c.lastMessageDoc.sender === userData._id) lastMsgPreview = `You: ${c.lastMessageDoc.text}`;
-                        else lastMsgPreview = c.lastMessageDoc.text;
-                    }
-                    const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
-                    const isOnline = (new Date().getTime() - lastSeenDate.getTime()) < 120000; 
-                    return {
-                        id: c._id, name: c.displayName, avatar: c.avatar, status: isOnline ? 'online' : 'offline',
-                        lastSeenRaw: c.lastSeen, about: c.bio, phone: c.phone, isAI: false,
-                        lastMessage: lastMsgPreview, lastMessageTime: lastMsgTime, lastMessageType: lastMsgType
-                    };
-                });
-                setContacts([...INITIAL_CONTACTS, ...dbContacts]);
-             }
-           }
+          // Merge Contacts if they exist
+          if (userData.contacts?.length > 0) {
+            const dbContacts = userData.contacts.map((c: any) => {
+                let lastMsgPreview = "No messages yet", lastMsgTime = "", lastMsgType = 'text';
+                if (c.lastMessageDoc) {
+                    lastMsgType = c.lastMessageDoc.type || 'text';
+                    lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
+                    if (c.lastMessageDoc.sender === userData._id) lastMsgPreview = `You: ${c.lastMessageDoc.text}`;
+                    else lastMsgPreview = c.lastMessageDoc.text;
+                }
+                const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
+                const isOnline = (new Date().getTime() - lastSeenDate.getTime()) < 120000; 
+                return {
+                    id: c._id, name: c.displayName, avatar: c.avatar, status: isOnline ? 'online' : 'offline',
+                    lastSeenRaw: c.lastSeen, about: c.bio, phone: c.phone, isAI: false,
+                    lastMessage: lastMsgPreview, lastMessageTime: lastMsgTime, lastMessageType: lastMsgType
+                };
+            });
+            setContacts([...INITIAL_CONTACTS, ...dbContacts]);
+          }
         }
-      } catch (err) { console.error("Auth check failed:", err); }
-    };
-    fetchUser();
-    return () => { if (socket.current) socket.current.disconnect(); };
+      }
+    } catch (err) { 
+      console.error("Auth check failed:", err); 
+      setUser(null);
+    }
   }, []);
 
+  // --- 2. Initial Load Effect ---
+  useEffect(() => {
+    fetchCurrentUser();
+  }, [fetchCurrentUser]);
+
+  // --- 3. Socket Connection (Runs when User is set) ---
+  useEffect(() => {
+    if (!user?.id) return; // Don't connect if no user
+    if (socket.current) return; // Prevent double connection
+
+    socket.current = io(API_URL);
+    socket.current.emit("addUser", user.id);
+
+    // Call Listeners
+    socket.current.on("incomingCall", ({ senderId, type }: any) => {
+        setCallStatus('incoming');
+        setCallType(type);
+        setActiveChatId(senderId);
+    });
+
+    socket.current.on("callAccepted", () => {
+        setCallStatus('connected');
+        callStartTime.current = Date.now();
+    });
+
+    socket.current.on("callEnded", () => {
+        setCallStatus('ended');
+        setTimeout(() => setCallStatus('idle'), 1000);
+    });
+
+    socket.current.on("userOffline", () => {
+        alert("User is offline or not reachable!");
+        setCallStatus('idle');
+    });
+
+    return () => { 
+        if (socket.current) {
+            socket.current.disconnect(); 
+            socket.current = null;
+        }
+    };
+  }, [user?.id]); // Only re-run if user ID changes
+
+  // --- Message Fetching ---
   const fetchMessages = useCallback(async (contactId: string) => {
     if (!user || !contactId || contactId === 'nebula-ai') return;
     try {
@@ -229,18 +257,14 @@ export const useChat = () => {
       return false;
     }
   }, []);
-  // --- NEW: Function to Fetch Protected Data ---
+
   const fetchProtectedData = useCallback(async () => {
     try {
       console.log("Testing connection to backend...");
-      
-      // We use credentials: 'include' instead of Bearer tokens
       const res = await fetch(`${API_URL}/api/protected-data`, {
         method: 'GET',
-        headers: { 
-          'Content-Type': 'application/json' 
-        },
-        credentials: 'include' // <--- CRITICAL: Sends your login cookie
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include' 
       });
 
       if (!res.ok) {
@@ -269,6 +293,6 @@ export const useChat = () => {
     handleSendMessage, callStatus, startCall, endCall, callType, answerCall,
     showSidebarMenu, setShowSidebarMenu, viewingProfile, setViewingProfile,
     previewProfile, setPreviewProfile, detailedProfile, setDetailedProfile,
-    handleUpdateContact, addContactByCode, updateMyProfile ,fetchProtectedData
+    handleUpdateContact, addContactByCode, updateMyProfile, fetchProtectedData
   };
 };

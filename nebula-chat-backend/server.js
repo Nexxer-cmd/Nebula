@@ -2,7 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const mongoose = require('mongoose');
-const cookieSession = require('cookie-session');
+const cookieSession = require('cookie-session'); // We are using this, not express-session
 const cors = require('cors');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
@@ -17,44 +17,61 @@ const app = express();
 const server = http.createServer(app);
 
 // --- CONFIGURATION ---
-// If CLIENT_URL is not set in Render, it defaults to localhost (which breaks online)
-// Make sure you added CLIENT_URL in Render Dashboard!
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL, 
+    origin: CLIENT_URL,
     methods: ["GET", "POST", "PUT"],
     credentials: true
   }
 });
 
-// --- MIDDLEWARE SECTION (Fixed Order) ---
+// --- MIDDLEWARE SECTION (Order is Critical) ---
 
-// 1. Trust Proxy (Required for Render https)
+// 1. Trust Proxy (REQUIRED for Render/Heroku to recognize HTTPS)
 app.set('trust proxy', 1);
 
-// 2. CORS (Allow Vercel to connect)
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+// 2. CORS (Must allow credentials)
+app.use(cors({ 
+  origin: CLIENT_URL, 
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE"]
+}));
 
 // 3. Body Parser
 app.use(express.json({ limit: '10mb' }));
 
-// 4. Secure Cookie Session (This MUST be the only one!)
+// 4. Secure Cookie Session
+// Note: cookie-session handles 'resave'/'saveUninitialized' automatically.
+// We apply the strict security settings here.
 app.use(cookieSession({
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  keys: [process.env.COOKIE_KEY],
-  sameSite: 'none', // Critical for Vercel <-> Render connection
-  secure: true,     // Critical for HTTPS
+  name: 'session', // standard name
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  keys: [process.env.COOKIE_KEY || 'default_secret_key'], 
+  
+  // REQUIRED for cross-site (Vercel -> Render):
+  sameSite: 'none', 
+  secure: true, // Must be true if sameSite is 'none'
   httpOnly: true
 }));
 
-// 5. Passport
+// 5. Passport Middleware
 app.use((req, res, next) => {
-    if (req.session && !req.session.regenerate) req.session.regenerate = (cb) => cb();
-    if (req.session && !req.session.save) req.session.save = (cb) => cb();
+    // Regenerate/Save are required polyfills for Passport with cookie-session
+    if (req.session && !req.session.regenerate) {
+        req.session.regenerate = (cb) => {
+            cb();
+        };
+    }
+    if (req.session && !req.session.save) {
+        req.session.save = (cb) => {
+            cb();
+        };
+    }
     next();
 });
+
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -214,7 +231,11 @@ app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'em
 // Redirect to frontend (uses CLIENT_URL from env)
 app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => res.redirect(CLIENT_URL));
 
-app.get('/api/logout', (req, res, next) => req.logout(err => err ? next(err) : res.redirect('/')));
+app.get('/api/logout', (req, res, next) => {
+    // Cookie session logout requires destroying the session explicitly
+    req.session = null;
+    req.logout(err => err ? next(err) : res.redirect(CLIENT_URL)); 
+});
 
 app.get('/api/current_user', async (req, res) => {
   if (!req.user) return res.status(401).send(null);
@@ -292,14 +313,11 @@ app.get('/api/messages/:contactId', async (req, res) => {
     res.send(messages);
   } catch (err) { res.status(500).send(err); }
 });
-// --- NEW: Protected Data Route ---
+
 app.get('/api/protected-data', (req, res) => {
-  // Check if the user is logged in (Passport session)
   if (!req.user) {
     return res.status(401).json({ error: "Unauthorized! You are not logged in." });
   }
-  
-  // If logged in, send back secret data
   res.json({ 
     success: true,
     message: "Secure connection established!", 
