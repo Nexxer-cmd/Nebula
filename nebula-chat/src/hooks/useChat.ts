@@ -480,7 +480,7 @@ export const useChat = () => {
     async (
       content: string,
       type = "text",
-      file?:File,
+ 
       callDetails: any = null
     ) => {
       if (!activeChatId || !user) return;
@@ -583,7 +583,7 @@ export const useChat = () => {
     const status = callStatus === "connected" ? "ended" : "missed";
 
     // Send a system message about the call
-    handleSendMessage(text, "call", undefined, {
+    handleSendMessage(text, "call",{
       status,
       duration: status === "missed" ? "" : durationStr,
     });
