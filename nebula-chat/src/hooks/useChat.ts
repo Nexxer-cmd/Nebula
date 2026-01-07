@@ -258,9 +258,9 @@ import { io } from "socket.io-client";
 import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES } from "../constants";
 import { formatRelativeTime } from "../utils";
 
-// [FIX] Ensure this matches your axios.tsx exactly to prevent connection issues
-const API_URL = import.meta.env.MODE === "development" 
-  ? "http://localhost:5000" 
+// [FIX] Ensure this matches your server URL exactly
+const API_URL = import.meta.env.MODE === "development"
+  ? "http://localhost:5000"
   : "https://nebula-p0u4.onrender.com";
 
 export const useChat = () => {
@@ -285,7 +285,7 @@ export const useChat = () => {
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, any>>({});
-  const [smartReplies] = useState<string[]>([]); // simplified for now
+  const [smartReplies] = useState<string[]>([]);
 
   // Call State
   const [callStatus, setCallStatus] = useState<
@@ -310,8 +310,10 @@ export const useChat = () => {
     if (detailedProfile?.id === updatedContact.id) setDetailedProfile(updatedContact);
   }, [user, viewingProfile, previewProfile, detailedProfile]);
 
-  // --- INITIALIZATION & SOCKETS ---
+  // --- EFFECT 1: AUTHENTICATION (Fetch User Only) ---
   useEffect(() => {
+    let isMounted = true; // [FIX] Track mount status
+
     const fetchUser = async () => {
       try {
         const res = await fetch(`${API_URL}/api/current_user`, {
@@ -319,10 +321,11 @@ export const useChat = () => {
         });
         if (res.ok) {
           const userData = await res.json();
-          if (userData && userData.googleId) {
+          // [FIX] Check isMounted before updating state
+          if (isMounted && userData && userData.googleId) {
             setUser({
               id: userData._id,
-              _id: userData._id, // Keep both for compatibility
+              _id: userData._id,
               name: userData.displayName,
               avatar: userData.avatar,
               email: userData.email,
@@ -330,210 +333,195 @@ export const useChat = () => {
               status: "online",
               about: userData.bio || "Hey!",
               isAI: false,
+              contacts: userData.contacts // Store raw contacts for processing later
             });
-
-            // Initialize Socket
-            socket.current = io(API_URL, { transports: ["websocket"] });
-            socket.current.emit("addUser", userData._id);
-
-            // 1. CALL EVENTS
-            socket.current.on("incomingCall", ({ type }: any) => {
-              setCallStatus("incoming")
-              setCallType(type);
-              // Optional: Switch to that chat automatically
-              // setActiveChatId(senderId);
-            });
-
-            socket.current.on("callAccepted", () => {
-              setCallStatus("connected");
-              callStartTime.current = Date.now();
-            });
-
-            socket.current.on("callEnded", () => {
-              setCallStatus("ended");
-              setTimeout(() => setCallStatus("idle"), 1000);
-            });
-
-            socket.current.on("userOffline", () => {
-              alert("User is offline or not reachable!");
-              setCallStatus("idle");
-            });
-
-            // 2. MESSAGE EVENTS (Real-time updates without polling)
-            socket.current.on("getMessage", (data: any) => {
-              setMessages((prev: any) => {
-                // Determine which chat this message belongs to
-                const chatId =
-                  data.sender === userData._id ? data.receiver : data.sender;
-
-                const newMsg = {
-                  id: data._id,
-                  text: data.text,
-                  time: formatRelativeTime(data.timestamp),
-                  sender: data.sender === userData._id ? "me" : "them",
-                  isRead: false,
-                  status: "sent",
-                  type: data.fileUrl
-                    ? data.fileType?.startsWith("image")
-                      ? "image"
-                      : "file"
-                    : data.type || "text",
-                  fileUrl: data.fileUrl
-                    ? `${API_URL}${data.fileUrl}`
-                    : undefined,
-                  fileName: data.fileName,
-                  replyTo: data.replyTo,
-                  callDetails: data.callDetails,
-                };
-
-                return {
-                  ...prev,
-                  [chatId]: [...(prev[chatId] || []), newMsg],
-                };
-              });
-            });
-
-            // Load Contacts
-            if (userData.contacts?.length > 0) {
-              const dbContacts = userData.contacts.map((c: any) => {
-                let lastMsgPreview = "No messages yet",
-                  lastMsgTime = "",
-                  lastMsgType = "text";
-                if (c.lastMessageDoc) {
-                  lastMsgType = c.lastMessageDoc.type || "text";
-                  lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
-                  if (c.lastMessageDoc.sender === userData._id)
-                    lastMsgPreview = `You: ${c.lastMessageDoc.text}`;
-                  else lastMsgPreview = c.lastMessageDoc.text;
-                }
-                const lastSeenDate = c.lastSeen
-                  ? new Date(c.lastSeen)
-                  : new Date(0);
-                const isOnline =
-                  new Date().getTime() - lastSeenDate.getTime() < 120000;
-                return {
-                  id: c._id,
-                  name: c.displayName,
-                  avatar: c.avatar,
-                  status: isOnline ? "online" : "offline",
-                  lastSeenRaw: c.lastSeen,
-                  about: c.bio,
-                  phone: c.phone,
-                  isAI: false,
-                  lastMessage: lastMsgPreview,
-                  lastMessageTime: lastMsgTime,
-                  lastMessageType: lastMsgType,
-                };
-              });
-              setContacts([...INITIAL_CONTACTS, ...dbContacts]);
-            }
           }
         }
       } catch (err) {
         console.error("Auth check failed:", err);
       }
     };
+
     fetchUser();
+
     return () => {
-      if (socket.current) socket.current.disconnect();
+      isMounted = false;
     };
   }, []);
 
-  // --- MESSAGE FETCHING ---
-  const fetchMessages = useCallback(
-    async (contactId: string) => {
-      if (!user || !contactId || contactId === "nebula-ai") return;
-      try {
-        const res = await fetch(`${API_URL}/api/messages/${contactId}`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const dbMessages = await res.json();
-          const formattedMessages = dbMessages.map((m: any) => ({
-            id: m._id,
-            senderId: m.sender,
-            text: m.text,
-            time: formatRelativeTime(m.timestamp), // Consistent formatting
-            sender: m.sender === user.id ? "me" : "them",
-            status: "read",
-            type:
-              m.type ||
-              (m.fileUrl
-                ? m.fileType?.startsWith("image")
-                  ? "image"
-                  : "file"
-                : "text"),
-            fileUrl: m.fileUrl ? `${API_URL}${m.fileUrl}` : undefined,
-            fileName: m.fileName,
-            callDetails: m.callDetails,
-            replyTo: m.replyTo,
-          }));
-          setMessages((prev: any) => ({
-            ...prev,
-            [contactId]: formattedMessages,
-          }));
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    [user]
-  );
+  // --- EFFECT 2: SOCKET CONNECTION (Runs when User is set) ---
+  useEffect(() => {
+    if (!user?._id) return; // Wait for user to be logged in
 
-  // Initial fetch when chat is selected (No polling needed thanks to Socket 'getMessage')
+    // Initialize Socket
+    const newSocket = io(API_URL, { transports: ["websocket"] });
+    socket.current = newSocket;
+    newSocket.emit("addUser", user._id);
+
+    // 1. CALL EVENTS
+    newSocket.on("incomingCall", ({ type }: any) => {
+      setCallStatus("incoming");
+      setCallType(type);
+    });
+
+    newSocket.on("callAccepted", () => {
+      setCallStatus("connected");
+      callStartTime.current = Date.now();
+    });
+
+    newSocket.on("callEnded", () => {
+      setCallStatus("ended");
+      setTimeout(() => setCallStatus("idle"), 1000);
+    });
+
+    newSocket.on("userOffline", () => {
+      alert("User is offline or not reachable!");
+      setCallStatus("idle");
+    });
+
+    // 2. MESSAGE EVENTS
+    newSocket.on("getMessage", (data: any) => {
+      setMessages((prev: any) => {
+        const chatId = data.sender === user._id ? data.receiver : data.sender;
+        
+        const newMsg = {
+          id: data._id,
+          text: data.text,
+          time: formatRelativeTime(data.timestamp),
+          sender: data.sender === user._id ? "me" : "them",
+          isRead: false,
+          status: "sent",
+          type: data.fileUrl
+            ? data.fileType?.startsWith("image") ? "image" : "file"
+            : data.type || "text",
+          fileUrl: data.fileUrl ? `${API_URL}${data.fileUrl}` : undefined,
+          fileName: data.fileName,
+          replyTo: data.replyTo,
+          callDetails: data.callDetails,
+        };
+
+        return {
+          ...prev,
+          [chatId]: [...(prev[chatId] || []), newMsg],
+        };
+      });
+    });
+
+    // Process Contacts (Moved logic inside here or separate effect, but here is fine)
+    if (user.contacts?.length > 0) {
+      const dbContacts = user.contacts.map((c: any) => {
+        let lastMsgPreview = "No messages yet", lastMsgTime = "", lastMsgType = "text";
+        if (c.lastMessageDoc) {
+          lastMsgType = c.lastMessageDoc.type || "text";
+          lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
+          lastMsgPreview = c.lastMessageDoc.sender === user._id 
+            ? `You: ${c.lastMessageDoc.text}` 
+            : c.lastMessageDoc.text;
+        }
+        
+        const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
+        const isOnline = new Date().getTime() - lastSeenDate.getTime() < 120000;
+
+        return {
+          id: c._id,
+          name: c.displayName,
+          avatar: c.avatar,
+          status: isOnline ? "online" : "offline",
+          about: c.bio,
+          isAI: false,
+          lastMessage: lastMsgPreview,
+          lastMessageTime: lastMsgTime,
+          lastMessageType: lastMsgType,
+        };
+      });
+      setContacts([...INITIAL_CONTACTS, ...dbContacts]);
+    }
+
+    // Cleanup function strictly for the socket
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [user?._id]); // Only re-run if the user ID changes
+
+  // --- MESSAGE FETCHING ---
+  const fetchMessages = useCallback(async (contactId: string) => {
+    if (!user || !contactId || contactId === "nebula-ai") return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/${contactId}`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const dbMessages = await res.json();
+        const formattedMessages = dbMessages.map((m: any) => ({
+          id: m._id,
+          senderId: m.sender,
+          text: m.text,
+          time: formatRelativeTime(m.timestamp),
+          sender: m.sender === user.id ? "me" : "them",
+          status: "read",
+          type: m.type || (m.fileUrl ? (m.fileType?.startsWith("image") ? "image" : "file") : "text"),
+          fileUrl: m.fileUrl ? `${API_URL}${m.fileUrl}` : undefined,
+          fileName: m.fileName,
+          callDetails: m.callDetails,
+          replyTo: m.replyTo,
+        }));
+        setMessages((prev: any) => ({
+          ...prev,
+          [contactId]: formattedMessages,
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!activeChatId || activeChatId === "nebula-ai") return;
     fetchMessages(activeChatId);
   }, [activeChatId, fetchMessages]);
 
   // --- ACTIONS: SEND MESSAGE ---
-  const handleSendMessage = useCallback(
-    async (
-      content: string,
-      type = "text",
- 
-      callDetails: any = null
-    ) => {
-      if (!activeChatId || !user) return;
-      const contact = contacts.find((c) => c.id === activeChatId);
-      if (contact?.isAI) return;
+  const handleSendMessage = useCallback(async (
+    content: string,
+    type = "text",
+    callDetails: any = null,
+    fileUrl: string | null = null // [FIX] Added fileUrl param
+  ) => {
+    if (!activeChatId || !user) return;
+    const contact = contacts.find((c) => c.id === activeChatId);
+    if (contact?.isAI) return;
 
-      // [FIX] Changed 'receiver' to 'receiverId' to match server expectations
-      const messageData = {
-        sender: user.id,
-        receiverId: activeChatId, // <--- THIS WAS THE CAUSE OF THE 400 ERROR
-        text: content,
-        type,
-        replyTo: replyingTo ? replyingTo.id : null,
-        callDetails,
-      };
+    const messageData = {
+      sender: user.id,
+      receiverId: activeChatId,
+      text: content,
+      type,
+      replyTo: replyingTo ? replyingTo.id : null,
+      callDetails,
+      fileUrl, // [FIX] Pass this to the server
+    };
 
-      try {
-        // 2. Persist to DB via API
-        const res = await fetch(`${API_URL}/api/messages/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(messageData),
-        });
+    try {
+      const res = await fetch(`${API_URL}/api/messages/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(messageData),
+      });
 
-        if (res.ok) {
-          // We rely on the socket 'getMessage' event to update the UI for consistency,
-          // OR we can optimistically update here if latency is high.
-          if (type === "text") {
-            setInputText("");
-            setReplyingTo(null);
-            setDrafts((prev) => ({ ...prev, [activeChatId]: "" }));
-          }
+      if (res.ok) {
+        if (type === "text") {
+          setInputText("");
+          setReplyingTo(null);
+          setDrafts((prev) => ({ ...prev, [activeChatId]: "" }));
         }
-      } catch (err) {
-        alert("Failed to send message.");
       }
-    },
-    [activeChatId, contacts, replyingTo, user]
-  );
+    } catch (err) {
+      alert("Failed to send message.");
+    }
+  }, [activeChatId, contacts, replyingTo, user]);
 
-  // --- ACTIONS: UPLOAD FILE (Restored from Code A) ---
+  // --- ACTIONS: UPLOAD FILE ---
   const handleFileUpload = async (file: File) => {
     if (!activeChatId || !user) return;
 
@@ -550,9 +538,9 @@ export const useChat = () => {
       const data = await response.json();
 
       if (data.success) {
-        // [OPTIONAL] You might want to automatically send the image message here
-        // handleSendMessage("", "image", null, data.fileUrl); 
-        // Note: You would need to update handleSendMessage signature to accept fileUrl
+        // [FIX] Automatically send the message now that upload is done
+        const fileType = file.type.startsWith("image") ? "image" : "file";
+        await handleSendMessage(file.name, fileType, null, data.fileUrl);
       }
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -564,7 +552,7 @@ export const useChat = () => {
     if (!activeChatId) return;
     setCallType(type);
     setCallStatus("ringing");
-    socket.current.emit("callUser", {
+    socket.current?.emit("callUser", {
       senderId: user.id,
       receiverId: activeChatId,
       type,
@@ -575,26 +563,24 @@ export const useChat = () => {
     setCallStatus("connected");
     callStartTime.current = Date.now();
     if (activeChatId)
-      socket.current.emit("answerCall", { senderId: activeChatId });
+      socket.current?.emit("answerCall", { senderId: activeChatId });
   };
 
   const endCall = () => {
     if (activeChatId)
-      socket.current.emit("endCall", { targetId: activeChatId });
+      socket.current?.emit("endCall", { targetId: activeChatId });
+    
     let durationStr = "00:00";
     if (callStatus === "connected" && callStartTime.current) {
       const diff = Math.floor((Date.now() - callStartTime.current) / 1000);
-      const mins = Math.floor(diff / 60)
-        .toString()
-        .padStart(2, "0");
+      const mins = Math.floor(diff / 60).toString().padStart(2, "0");
       const secs = (diff % 60).toString().padStart(2, "0");
       durationStr = `${mins}:${secs}`;
     }
     const text = callType === "video" ? "Video Call" : "Audio Call";
     const status = callStatus === "connected" ? "ended" : "missed";
 
-    // Send a system message about the call
-    handleSendMessage(text, "call",{
+    handleSendMessage(text, "call", {
       status,
       duration: status === "missed" ? "" : durationStr,
     });
@@ -604,23 +590,20 @@ export const useChat = () => {
   };
 
   // --- ACTIONS: CONTACTS & PROFILE ---
-  const handleChatSelect = useCallback(
-    (newChatId: string | null) => {
-      if (activeChatId) {
-        setDrafts((prev) => ({ ...prev, [activeChatId]: inputText }));
-        setReplyDrafts((prev) => ({ ...prev, [activeChatId]: replyingTo }));
-      }
-      setActiveChatId(newChatId);
-      if (newChatId) {
-        setInputText(drafts[newChatId] || "");
-        setReplyingTo(replyDrafts[newChatId] || null);
-      } else {
-        setInputText("");
-        setReplyingTo(null);
-      }
-    },
-    [activeChatId, inputText, replyingTo, drafts, replyDrafts]
-  );
+  const handleChatSelect = useCallback((newChatId: string | null) => {
+    if (activeChatId) {
+      setDrafts((prev) => ({ ...prev, [activeChatId]: inputText }));
+      setReplyDrafts((prev) => ({ ...prev, [activeChatId]: replyingTo }));
+    }
+    setActiveChatId(newChatId);
+    if (newChatId) {
+      setInputText(drafts[newChatId] || "");
+      setReplyingTo(replyDrafts[newChatId] || null);
+    } else {
+      setInputText("");
+      setReplyingTo(null);
+    }
+  }, [activeChatId, inputText, replyingTo, drafts, replyDrafts]);
 
   const addContactByCode = useCallback(async (shareCode: string) => {
     try {
@@ -703,18 +686,15 @@ export const useChat = () => {
     setReplyingTo,
     smartReplies,
     activeContact,
-    // Actions
     handleSendMessage,
-    handleFileUpload, // Added back
+    handleFileUpload,
     addContactByCode,
     updateMyProfile,
-    // Calls
     callStatus,
     startCall,
     endCall,
     callType,
     answerCall,
-    // UI
     showSidebarMenu,
     setShowSidebarMenu,
     viewingProfile,
