@@ -53,7 +53,7 @@
 // };
 
 // // --- SOCKET.IO LOGIC ---
-// // [FIX] Moved getUser to a scope where it can be exported or used logically, 
+// // [FIX] Moved getUser to a scope where it can be exported or used logically,
 // // though keeping it here is fine as long as routes can access the 'io' instance.
 // let onlineUsers = [];
 
@@ -180,7 +180,7 @@
 //     maxAge: 30 * 24 * 60 * 60 * 1000,
 //     keys: [process.env.COOKIE_KEY],
 //     // [FIX] Security: sameSite 'lax' is better for OAuth redirects in some browsers
-//     sameSite: "none", 
+//     sameSite: "none",
 //      secure: true
 //     // secure: process.env.NODE_ENV === "production", // Only secure in prod
 //   })
@@ -277,11 +277,11 @@
 //   try {
 //     const myId = req.user._id;
 //     await User.findByIdAndUpdate(myId, { lastSeen: new Date() });
-    
+
 //     // Auto-add contacts logic
 //     const userRaw = await User.findById(myId);
 //     const incomingSenders = await Message.find({ receiver: myId }).distinct("sender");
-    
+
 //     let newContactsFound = false;
 //     incomingSenders.forEach((senderId) => {
 //       if (!userRaw.contacts.includes(senderId) && !senderId.equals(myId)) {
@@ -345,7 +345,7 @@
 //     if (!userToAdd) return res.status(404).send({ error: "User ID not found" });
 //     if (userToAdd._id.toString() === req.user._id.toString())
 //       return res.status(400).send({ error: "Cannot add yourself" });
-      
+
 //     await User.findByIdAndUpdate(req.user._id, {
 //       $addToSet: { contacts: userToAdd._id },
 //     });
@@ -359,7 +359,7 @@
 // app.post("/api/messages/send", async (req, res) => {
 //   if (!req.user) return res.status(401).send({ error: "Not logged in" });
 //   const { receiverId, text, type = "text", callDetails } = req.body;
-  
+
 //   try {
 //     const newMessage = await new Message({
 //       sender: req.user._id,
@@ -379,7 +379,7 @@
 //       // Emit to the specific socket ID
 //       io.to(receiver.socketId).emit("getMessage", newMessage);
 //     }
-    
+
 //     // We also return the message to the sender
 //     res.send(newMessage);
 //   } catch (err) {
@@ -393,7 +393,7 @@
 //   const { contactId } = req.params;
 //   try {
 //     await User.findByIdAndUpdate(req.user._id, { lastSeen: new Date() });
-    
+
 //     const messages = await Message.find({
 //       $or: [
 //         { sender: req.user._id, receiver: contactId },
@@ -402,7 +402,7 @@
 //     })
 //     .sort({ timestamp: 1 })
 //     .lean();
-    
+
 //     res.send(messages);
 //   } catch (err) {
 //     res.status(500).send(err);
@@ -428,7 +428,6 @@
 
 // // ... server.listen is below this
 // server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
 
 // const express = require("express");
 // const passport = require("passport");
@@ -468,8 +467,6 @@
 //   methods: ["GET", "POST", "PUT", "DELETE"],
 //   credentials: true
 // }));
-
-
 
 // app.use(express.json({ limit: "15mb" }));
 // app.use(express.urlencoded({ extended: true, limit: "15mb" }));
@@ -615,7 +612,7 @@
 //         if (!user) {
 //           const color = getRandomColor(profile.displayName);
 //           const avatar = profile.photos?.[0]?.value || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=${color}&color=fff`;
-          
+
 //           user = await new User({
 //             googleId: profile.id,
 //             displayName: profile.displayName,
@@ -650,12 +647,12 @@
 
 // app.post("/upload", upload.single("file"), (req, res) => {
 //   if (!req.file) return res.status(400).send({ error: "No file uploaded" });
-  
+
 //   // Return the path that the frontend can use to display the image
-//   res.send({ 
-//     success: true, 
-//     fileUrl: `/uploads/${req.file.filename}`, 
-//     fileName: req.file.originalname 
+//   res.send({
+//     success: true,
+//     fileUrl: `/uploads/${req.file.filename}`,
+//     fileName: req.file.originalname
 //   });
 // });
 
@@ -673,13 +670,13 @@
 // // User Data
 // app.get("/api/current_user", async (req, res) => {
 //   if (!req.user) return res.status(401).send(null);
-  
+
 //   // Update last seen
 //   await User.findByIdAndUpdate(req.user._id, { lastSeen: new Date() });
 
 //   // Fetch user with contacts
 //   const userDoc = await User.findById(req.user._id).populate("contacts").lean();
-  
+
 //   // Aggregate last messages for sidebar
 //   const lastMessagesAgg = await Message.aggregate([
 //     { $match: { $or: [{ sender: req.user._id }, { receiver: req.user._id }] } },
@@ -716,7 +713,7 @@
 //   try {
 //     const userToAdd = await User.findOne({ shareId: req.body.targetShareId });
 //     if (!userToAdd) return res.status(404).send({ error: "User not found" });
-    
+
 //     await User.findByIdAndUpdate(req.user._id, { $addToSet: { contacts: userToAdd._id } });
 //     res.send(userToAdd);
 //   } catch(e) { res.status(500).send(e); }
@@ -725,9 +722,9 @@
 // // Send Message
 // app.post("/api/messages/send", async (req, res) => {
 //   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
-  
+
 //   const { receiverId, text, type, fileUrl, fileName, callDetails, replyTo } = req.body;
-  
+
 //   // 1. ADD THIS VALIDATION
 //   if (!receiverId) {
 //     console.error("Message Error: Missing receiverId");
@@ -752,7 +749,7 @@
 //     }
 //   } catch (err) {
 //     // 2. ADD THIS LOGGING
-//     console.error("FATAL MESSAGE ERROR:", err); 
+//     console.error("FATAL MESSAGE ERROR:", err);
 //     res.status(500).send({ error: err.message });
 //   }
 // });
@@ -782,7 +779,6 @@
 // const PORT = process.env.PORT || 5000;
 // server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-
 const express = require("express");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
@@ -793,17 +789,16 @@ const crypto = require("crypto");
 const http = require("http");
 const path = require("path");
 const multer = require("multer");
-const fs = require('fs');
+const fs = require("fs");
 const { Server } = require("socket.io");
 const nodemailer = require("nodemailer");
 
 // --- ENVIRONMENT SETUP ---
-// Only load .env file if we are NOT in production
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
 
-// Critical Safety Check: Ensure DB and Auth keys exist
+// Critical Safety Check
 if (!process.env.COOKIE_KEY || !process.env.MONGO_URI) {
   console.error("FATAL ERROR: COOKIE_KEY or MONGO_URI is not defined.");
   process.exit(1);
@@ -812,48 +807,58 @@ if (!process.env.COOKIE_KEY || !process.env.MONGO_URI) {
 const app = express();
 const server = http.createServer(app);
 
-// Trust Proxy for Render/Heroku (Required for secure cookies behind load balancers)
+// Trust Proxy for Render
 app.set("trust proxy", 1);
 
 // --- URL CONFIGURATION ---
-// [OPTIMIZATION] Updated to match your actual deployed frontend URL from the error logs
-const PROD_FRONTEND = "https://nebula-ui.onrender.com"; 
-const CLIENT_URL = process.env.NODE_ENV === "production" ? PROD_FRONTEND : "http://localhost:5173";
+const PROD_FRONTEND = "https://nebula-ui.onrender.com";
+const CLIENT_URL =
+  process.env.NODE_ENV === "production"
+    ? PROD_FRONTEND
+    : "http://localhost:5173";
 
 // --- MIDDLEWARE ---
-app.use(cors({
-  origin: CLIENT_URL,
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: CLIENT_URL,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  }),
+);
 
-// Increased limit to 15mb to handle base64 images or larger payloads
-app.use(express.json({ limit: "15mb" }));
-app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+// [FIX] Increased Payload Limit
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // --- DATABASE CONNECTION ---
-mongoose.set('strictQuery', false);
-mongoose.connect(process.env.MONGO_URI)
+mongoose.set("strictQuery", false);
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
 // --- SESSION CONFIG ---
-app.use(cookieSession({
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 Days
-  keys: [process.env.COOKIE_KEY],
-  // Secure cookies only in production
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  httpOnly: true
-}));
+app.use(
+  cookieSession({
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    keys: [process.env.COOKIE_KEY],
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    httpOnly: true,
+  }),
+);
 
-// Fix for Passport session regeneration (Security Best Practice)
+// Fix for Passport session regeneration
 app.use((req, res, next) => {
   if (req.session && !req.session.regenerate) {
-    req.session.regenerate = (cb) => { cb(); };
+    req.session.regenerate = (cb) => {
+      cb();
+    };
   }
   if (req.session && !req.session.save) {
-    req.session.save = (cb) => { cb(); };
+    req.session.save = (cb) => {
+      cb();
+    };
   }
   next();
 });
@@ -876,7 +881,11 @@ const User = mongoose.model("User", UserSchema);
 
 const MessageSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  receiver: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  receiver: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   text: String,
   type: {
     type: String,
@@ -890,15 +899,13 @@ const MessageSchema = new mongoose.Schema({
     duration: String,
   },
   timestamp: { type: Date, default: Date.now },
-  replyTo: String
+  replyTo: String,
 });
-
-// Indexes for fast chat history retrieval
 MessageSchema.index({ sender: 1, receiver: 1, timestamp: 1 });
 MessageSchema.index({ receiver: 1, sender: 1, timestamp: 1 });
 const Message = mongoose.model("Message", MessageSchema);
 
-// --- SOCKET.IO SETUP ---
+// --- SOCKET.IO ---
 const io = new Server(server, {
   cors: {
     origin: CLIENT_URL,
@@ -908,33 +915,27 @@ const io = new Server(server, {
 });
 
 let onlineUsers = [];
-const getUser = (userId) => onlineUsers.find((user) => user.userId === userId.toString());
+const getUser = (userId) =>
+  onlineUsers.find((user) => user.userId === userId.toString());
 
 io.on("connection", (socket) => {
-  // User joins
   socket.on("addUser", (userId) => {
     onlineUsers = onlineUsers.filter((user) => user.userId !== userId);
     onlineUsers.push({ userId, socketId: socket.id });
     io.emit("getUsers", onlineUsers);
   });
-
-  // Call Signaling
   socket.on("callUser", ({ senderId, receiverId, type }) => {
     const user = getUser(receiverId);
     if (user) io.to(user.socketId).emit("incomingCall", { senderId, type });
   });
-
   socket.on("answerCall", ({ senderId }) => {
     const user = getUser(senderId);
     if (user) io.to(user.socketId).emit("callAccepted");
   });
-
   socket.on("endCall", ({ targetId }) => {
     const user = getUser(targetId);
     if (user) io.to(user.socketId).emit("callEnded");
   });
-
-  // User disconnects
   socket.on("disconnect", () => {
     onlineUsers = onlineUsers.filter((user) => user.socketId !== socket.id);
     io.emit("getUsers", onlineUsers);
@@ -943,15 +944,31 @@ io.on("connection", (socket) => {
 
 // --- UTILS ---
 const getRandomColor = (name) => {
-  const colors = ["F44336", "E91E63", "9C27B0", "2196F3", "009688", "FFC107", "FF5722"];
+  const colors = [
+    "F44336",
+    "E91E63",
+    "9C27B0",
+    "2196F3",
+    "009688",
+    "FFC107",
+    "FF5722",
+  ];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < name.length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
 };
 
-const generateShareId = () => "NEB-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+const generateShareId = () =>
+  "NEB-" + crypto.randomBytes(3).toString("hex").toUpperCase();
 
 // --- EMAIL CONFIGURATION ---
+// [DEBUG] Log if credentials exist
+console.log("📧 Email Config Check:", {
+  hasUser: !!process.env.EMAIL_USER,
+  hasPass: !!process.env.EMAIL_PASS,
+});
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -960,23 +977,36 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// --- PASSPORT STRATEGY ---
+// Verify connection configuration
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("❌ Email Connection Error:", error);
+  } else {
+    console.log("✅ Email Server is ready to take our messages");
+  }
+});
+
+// --- PASSPORT ---
 passport.use(
-  new GoogleStrategy({
+  new GoogleStrategy(
+    {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: "/auth/google/callback",
-      proxy: true
+      proxy: true,
     },
     async (token, refToken, profile, done) => {
       try {
         let user = await User.findOne({ googleId: profile.id });
-        
+
         if (!user) {
           // 1. Create User
+          console.log("🆕 Creating new user:", profile.displayName);
           const color = getRandomColor(profile.displayName);
-          const avatar = profile.photos?.[0]?.value || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=${color}&color=fff`;
-          
+          const avatar =
+            profile.photos?.[0]?.value ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName)}&background=${color}&color=fff`;
+
           user = await new User({
             googleId: profile.id,
             displayName: profile.displayName,
@@ -987,8 +1017,10 @@ passport.use(
 
           // 2. Send Welcome Email
           if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-             const mailOptions = {
-              from: '"Nebula Chat" <' + process.env.EMAIL_USER + '>',
+            console.log("📨 Attempting to send welcome email to:", user.email);
+
+            const mailOptions = {
+              from: '"Nebula Chat" <' + process.env.EMAIL_USER + ">",
               to: user.email,
               subject: "Welcome to Nebula Chat! 🚀",
               html: `
@@ -1000,161 +1032,200 @@ passport.use(
                   <br/>
                   <p>Best regards,<br/>The Nebula Team</p>
                 </div>
-              `
+              `,
             };
-            
-            transporter.sendMail(mailOptions, (err, info) => {
-              if (err) console.error("❌ Email Error:", err);
-              else console.log("✅ Welcome email sent to:", user.email);
-            });
+
+            // Send mail using Async/Await to catch errors better
+            try {
+              const info = await transporter.sendMail(mailOptions);
+              console.log("✅ Email Sent ID:", info.messageId);
+            } catch (emailError) {
+              console.error("❌ Failed to send email:", emailError);
+            }
           } else {
-             console.log("⚠️ Email credentials missing in .env, skipping welcome email.");
+            console.log(
+              "⚠️ Email credentials missing in .env, skipping welcome email.",
+            );
           }
+        } else {
+          console.log("👋 Existing user logged in:", user.displayName);
         }
-        
+
         done(null, user);
       } catch (err) {
+        console.error("Auth Error:", err);
         done(err, null);
       }
-    }
-  )
+    },
+  ),
 );
 
 passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser((id, done) => User.findById(id).then(u => done(null, u)).catch(e => done(e, null)));
+passport.deserializeUser((id, done) =>
+  User.findById(id)
+    .then((u) => done(null, u))
+    .catch((e) => done(e, null)),
+);
 
-// --- FILE UPLOAD (LOCAL STORAGE) ---
+// --- FILE UPLOAD ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + path.extname(file.originalname)),
 });
 const upload = multer({ storage });
-
-// Ensure 'uploads' directory exists
-if (!fs.existsSync('uploads')){ fs.mkdirSync('uploads'); }
+if (!fs.existsSync("uploads")) {
+  fs.mkdirSync("uploads");
+}
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).send({ error: "No file uploaded" });
-  res.send({ 
-    success: true, 
-    fileUrl: `/uploads/${req.file.filename}`, 
-    fileName: req.file.originalname 
+  res.send({
+    success: true,
+    fileUrl: `/uploads/${req.file.filename}`,
+    fileName: req.file.originalname,
   });
 });
 
 // --- API ROUTES ---
 
-// 1. Auth Routes
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"], prompt: "select_account" }));
-
-app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/" }), (req, res) => {
-    // Successful authentication, redirect to frontend
-    res.redirect(CLIENT_URL);
+// Temp route to clear DB (USE WITH CAUTION)
+app.get("/api/nuke-db", async (req, res) => {
+  if (process.env.NODE_ENV === "production")
+    return res.status(403).send("Not allowed in production");
+  try {
+    await User.deleteMany({});
+    await Message.deleteMany({});
+    res.send("💥 database cleared. All users and messages deleted.");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
 });
 
+// Auth
+app.get(
+  "/auth/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    prompt: "select_account",
+  }),
+);
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/" }),
+  (req, res) => res.redirect(CLIENT_URL),
+);
 app.get("/api/logout", (req, res) => {
   req.logout(() => {
     res.redirect(CLIENT_URL);
   });
 });
 
-// 2. User Data Route
+// User Data
 app.get("/api/current_user", async (req, res) => {
   if (!req.user) return res.status(401).send(null);
-  
-  // Update last seen
   await User.findByIdAndUpdate(req.user._id, { lastSeen: new Date() });
-
   const userDoc = await User.findById(req.user._id).populate("contacts").lean();
-  
-  // Aggregate last message for every contact
+
   const lastMessagesAgg = await Message.aggregate([
     { $match: { $or: [{ sender: req.user._id }, { receiver: req.user._id }] } },
     { $sort: { timestamp: -1 } },
-    { $group: {
-        _id: { $cond: [{ $eq: ["$sender", req.user._id] }, "$receiver", "$sender"] },
-        lastMessageDoc: { $first: "$$ROOT" }
-    }}
+    {
+      $group: {
+        _id: {
+          $cond: [{ $eq: ["$sender", req.user._id] }, "$receiver", "$sender"],
+        },
+        lastMessageDoc: { $first: "$$ROOT" },
+      },
+    },
   ]);
-
   const lastMessageMap = {};
-  lastMessagesAgg.forEach(i => lastMessageMap[i._id.toString()] = i.lastMessageDoc);
-
-  const contactsWithMeta = userDoc.contacts.map(c => ({
+  lastMessagesAgg.forEach(
+    (i) => (lastMessageMap[i._id.toString()] = i.lastMessageDoc),
+  );
+  const contactsWithMeta = userDoc.contacts.map((c) => ({
     ...c,
-    lastMessageDoc: lastMessageMap[c._id.toString()] || null
+    lastMessageDoc: lastMessageMap[c._id.toString()] || null,
   }));
-
   res.send({ ...userDoc, contacts: contactsWithMeta });
 });
 
-// 3. Update User Profile
 app.put("/api/user/update", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
-    const updated = await User.findByIdAndUpdate(req.user._id, req.body, { new: true });
+    const updated = await User.findByIdAndUpdate(req.user._id, req.body, {
+      new: true,
+    });
     res.send(updated);
-  } catch(e) { res.status(500).send(e); }
+  } catch (e) {
+    res.status(500).send(e);
+  }
 });
 
-// 4. Add Contact by ShareID
 app.post("/api/contacts/add", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
     const userToAdd = await User.findOne({ shareId: req.body.targetShareId });
     if (!userToAdd) return res.status(404).send({ error: "User not found" });
-    
-    // Prevent adding self
-    if (userToAdd._id.equals(req.user._id)) return res.status(400).send({ error: "Cannot add yourself." });
-
-    await User.findByIdAndUpdate(req.user._id, { $addToSet: { contacts: userToAdd._id } });
+    if (userToAdd._id.equals(req.user._id))
+      return res.status(400).send({ error: "Cannot add yourself." });
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { contacts: userToAdd._id },
+    });
     res.send(userToAdd);
-  } catch(e) { res.status(500).send(e); }
+  } catch (e) {
+    res.status(500).send(e);
+  }
 });
 
-// 5. Send Message (with Socket)
 app.post("/api/messages/send", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
-  const { receiverId, text, type, fileUrl, fileName, callDetails, replyTo } = req.body;
-  
-  if (!receiverId) return res.status(400).send({ error: "Receiver ID is required" });
-
+  const { receiverId, text, type, fileUrl, fileName, callDetails, replyTo } =
+    req.body;
+  if (!receiverId)
+    return res.status(400).send({ error: "Receiver ID is required" });
   try {
     const newMessage = await new Message({
-      sender: req.user._id, receiver: receiverId, text, type, fileUrl, fileName, callDetails, replyTo, timestamp: new Date()
+      sender: req.user._id,
+      receiver: receiverId,
+      text,
+      type,
+      fileUrl,
+      fileName,
+      callDetails,
+      replyTo,
+      timestamp: new Date(),
     }).save();
-
     res.send(newMessage);
-
-    // Real-time update to receiver
     const receiverSocket = getUser(receiverId);
     if (receiverSocket) {
       io.to(receiverSocket.socketId).emit("getMessage", newMessage);
     }
   } catch (err) {
-    console.error("Message Error:", err); 
+    console.error("Message Error:", err);
     res.status(500).send({ error: err.message });
   }
 });
 
-// 6. Get Chat History
 app.get("/api/messages/:contactId", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
     const messages = await Message.find({
       $or: [
         { sender: req.user._id, receiver: req.params.contactId },
-        { sender: req.params.contactId, receiver: req.user._id }
-      ]
+        { sender: req.params.contactId, receiver: req.user._id },
+      ],
     }).sort({ timestamp: 1 });
     res.send(messages);
-  } catch(e) { res.status(500).send(e); }
+  } catch (e) {
+    res.status(500).send(e);
+  }
 });
 
-// --- ROOT ROUTE (Health Check) ---
+// --- ROOT REDIRECT ---
 app.get("/", (req, res) => {
-  res.send("Nebula Chat Backend is Running Successfully 🚀");
+  res.redirect(CLIENT_URL);
 });
 
 const PORT = process.env.PORT || 5000;
