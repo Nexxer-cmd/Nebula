@@ -459,7 +459,7 @@ const server = http.createServer(app);
 // Trust Proxy for Render/Heroku (Required for secure cookies behind load balancers)
 app.set("trust proxy", 1);
 
-const PROD_URL = "https://nebula-p0u4.onrender.com"; 
+const PROD_URL = "https://nebulafrontend-o0dr.onrender.com";
 const CLIENT_URL = process.env.NODE_ENV === "production" ? PROD_URL : "http://localhost:5173";
 
 // --- MIDDLEWARE ---
