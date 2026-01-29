@@ -797,12 +797,13 @@ const fs = require('fs');
 const { Server } = require("socket.io");
 const nodemailer = require("nodemailer");
 
+// --- ENVIRONMENT SETUP ---
 // Only load .env file if we are NOT in production
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
 
-// Critical Safety Check
+// Critical Safety Check: Ensure DB and Auth keys exist
 if (!process.env.COOKIE_KEY || !process.env.MONGO_URI) {
   console.error("FATAL ERROR: COOKIE_KEY or MONGO_URI is not defined.");
   process.exit(1);
@@ -814,9 +815,10 @@ const server = http.createServer(app);
 // Trust Proxy for Render/Heroku (Required for secure cookies behind load balancers)
 app.set("trust proxy", 1);
 
-// --- CONFIGURATION ---
-const PROD_URL = "https://nebulafrontend-o0dr.onrender.com"; // Your Frontend URL
-const CLIENT_URL = process.env.NODE_ENV === "production" ? PROD_URL : "http://localhost:5173";
+// --- URL CONFIGURATION ---
+// [OPTIMIZATION] Updated to match your actual deployed frontend URL from the error logs
+const PROD_FRONTEND = "https://nebula-ui.onrender.com"; 
+const CLIENT_URL = process.env.NODE_ENV === "production" ? PROD_FRONTEND : "http://localhost:5173";
 
 // --- MIDDLEWARE ---
 app.use(cors({
@@ -825,6 +827,7 @@ app.use(cors({
   credentials: true
 }));
 
+// Increased limit to 15mb to handle base64 images or larger payloads
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
@@ -836,7 +839,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // --- SESSION CONFIG ---
 app.use(cookieSession({
-  maxAge: 30 * 24 * 60 * 60 * 1000,
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 Days
   keys: [process.env.COOKIE_KEY],
   // Secure cookies only in production
   secure: process.env.NODE_ENV === "production",
@@ -844,7 +847,7 @@ app.use(cookieSession({
   httpOnly: true
 }));
 
-// Fix for Passport session regeneration
+// Fix for Passport session regeneration (Security Best Practice)
 app.use((req, res, next) => {
   if (req.session && !req.session.regenerate) {
     req.session.regenerate = (cb) => { cb(); };
@@ -889,7 +892,8 @@ const MessageSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   replyTo: String
 });
-// Index for fast chat history retrieval
+
+// Indexes for fast chat history retrieval
 MessageSchema.index({ sender: 1, receiver: 1, timestamp: 1 });
 MessageSchema.index({ receiver: 1, sender: 1, timestamp: 1 });
 const Message = mongoose.model("Message", MessageSchema);
@@ -907,12 +911,14 @@ let onlineUsers = [];
 const getUser = (userId) => onlineUsers.find((user) => user.userId === userId.toString());
 
 io.on("connection", (socket) => {
+  // User joins
   socket.on("addUser", (userId) => {
     onlineUsers = onlineUsers.filter((user) => user.userId !== userId);
     onlineUsers.push({ userId, socketId: socket.id });
     io.emit("getUsers", onlineUsers);
   });
 
+  // Call Signaling
   socket.on("callUser", ({ senderId, receiverId, type }) => {
     const user = getUser(receiverId);
     if (user) io.to(user.socketId).emit("incomingCall", { senderId, type });
@@ -928,13 +934,14 @@ io.on("connection", (socket) => {
     if (user) io.to(user.socketId).emit("callEnded");
   });
 
+  // User disconnects
   socket.on("disconnect", () => {
     onlineUsers = onlineUsers.filter((user) => user.socketId !== socket.id);
     io.emit("getUsers", onlineUsers);
   });
 });
 
-// --- AUTH UTILS ---
+// --- UTILS ---
 const getRandomColor = (name) => {
   const colors = ["F44336", "E91E63", "9C27B0", "2196F3", "009688", "FFC107", "FF5722"];
   let hash = 0;
@@ -944,16 +951,16 @@ const getRandomColor = (name) => {
 
 const generateShareId = () => "NEB-" + crypto.randomBytes(3).toString("hex").toUpperCase();
 
-// --- EMAIL CONFIGURATION (FIXED) ---
+// --- EMAIL CONFIGURATION ---
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER, // Add to .env
-    pass: process.env.EMAIL_PASS, // Add to .env (App Password)
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
-// --- PASSPORT CONFIG ---
+// --- PASSPORT STRATEGY ---
 passport.use(
   new GoogleStrategy({
       clientID: process.env.GOOGLE_CLIENT_ID,
@@ -978,7 +985,7 @@ passport.use(
             shareId: generateShareId(),
           }).save();
 
-          // 2. Send Welcome Email (Only for new users)
+          // 2. Send Welcome Email
           if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
              const mailOptions = {
               from: '"Nebula Chat" <' + process.env.EMAIL_USER + '>',
@@ -1038,22 +1045,30 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
 // --- API ROUTES ---
 
-// Auth
+// 1. Auth Routes
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"], prompt: "select_account" }));
-app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/" }), (req, res) => res.redirect(CLIENT_URL));
+
+app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/" }), (req, res) => {
+    // Successful authentication, redirect to frontend
+    res.redirect(CLIENT_URL);
+});
+
 app.get("/api/logout", (req, res) => {
   req.logout(() => {
     res.redirect(CLIENT_URL);
   });
 });
 
-// User Data
+// 2. User Data Route
 app.get("/api/current_user", async (req, res) => {
   if (!req.user) return res.status(401).send(null);
+  
+  // Update last seen
   await User.findByIdAndUpdate(req.user._id, { lastSeen: new Date() });
 
   const userDoc = await User.findById(req.user._id).populate("contacts").lean();
   
+  // Aggregate last message for every contact
   const lastMessagesAgg = await Message.aggregate([
     { $match: { $or: [{ sender: req.user._id }, { receiver: req.user._id }] } },
     { $sort: { timestamp: -1 } },
@@ -1074,6 +1089,7 @@ app.get("/api/current_user", async (req, res) => {
   res.send({ ...userDoc, contacts: contactsWithMeta });
 });
 
+// 3. Update User Profile
 app.put("/api/user/update", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
@@ -1082,17 +1098,22 @@ app.put("/api/user/update", async (req, res) => {
   } catch(e) { res.status(500).send(e); }
 });
 
+// 4. Add Contact by ShareID
 app.post("/api/contacts/add", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
     const userToAdd = await User.findOne({ shareId: req.body.targetShareId });
     if (!userToAdd) return res.status(404).send({ error: "User not found" });
     
+    // Prevent adding self
+    if (userToAdd._id.equals(req.user._id)) return res.status(400).send({ error: "Cannot add yourself." });
+
     await User.findByIdAndUpdate(req.user._id, { $addToSet: { contacts: userToAdd._id } });
     res.send(userToAdd);
   } catch(e) { res.status(500).send(e); }
 });
 
+// 5. Send Message (with Socket)
 app.post("/api/messages/send", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   const { receiverId, text, type, fileUrl, fileName, callDetails, replyTo } = req.body;
@@ -1106,6 +1127,7 @@ app.post("/api/messages/send", async (req, res) => {
 
     res.send(newMessage);
 
+    // Real-time update to receiver
     const receiverSocket = getUser(receiverId);
     if (receiverSocket) {
       io.to(receiverSocket.socketId).emit("getMessage", newMessage);
@@ -1116,6 +1138,7 @@ app.post("/api/messages/send", async (req, res) => {
   }
 });
 
+// 6. Get Chat History
 app.get("/api/messages/:contactId", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
