@@ -383,7 +383,7 @@
 //     newSocket.on("getMessage", (data: any) => {
 //       setMessages((prev: any) => {
 //         const chatId = data.sender === user._id ? data.receiver : data.sender;
-        
+
 //         const newMsg = {
 //           id: data._id,
 //           text: data.text,
@@ -414,11 +414,11 @@
 //         if (c.lastMessageDoc) {
 //           lastMsgType = c.lastMessageDoc.type || "text";
 //           lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
-//           lastMsgPreview = c.lastMessageDoc.sender === user._id 
-//             ? `You: ${c.lastMessageDoc.text}` 
+//           lastMsgPreview = c.lastMessageDoc.sender === user._id
+//             ? `You: ${c.lastMessageDoc.text}`
 //             : c.lastMessageDoc.text;
 //         }
-        
+
 //         const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
 //         const isOnline = new Date().getTime() - lastSeenDate.getTime() < 120000;
 
@@ -569,7 +569,7 @@
 //   const endCall = () => {
 //     if (activeChatId)
 //       socket.current?.emit("endCall", { targetId: activeChatId });
-    
+
 //     let durationStr = "00:00";
 //     if (callStatus === "connected" && callStartTime.current) {
 //       const diff = Math.floor((Date.now() - callStartTime.current) / 1000);
@@ -707,14 +707,6 @@
 //   };
 // };
 
-
-
-
-
-
-
-
-
 // import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 // import { io } from "socket.io-client";
 // import { INITIAL_CONTACTS, INITIAL_MESSAGES, THEMES } from "../constants";
@@ -755,7 +747,7 @@
 //   const callStartTime = useRef<number | null>(null);
 
 //   const theme = THEMES[currentThemeId as keyof typeof THEMES];
-  
+
 //   // [FIX] Use the imported BASE_URL
 //   const API_URL = BASE_URL;
 
@@ -774,7 +766,7 @@
 
 //   // --- EFFECT 1: AUTHENTICATION (Fetch User Only) ---
 //   useEffect(() => {
-//     let isMounted = true; 
+//     let isMounted = true;
 
 //     const fetchUser = async () => {
 //       try {
@@ -794,7 +786,7 @@
 //               status: "online",
 //               about: userData.bio || "Hey!",
 //               isAI: false,
-//               contacts: userData.contacts 
+//               contacts: userData.contacts
 //             });
 //           }
 //         }
@@ -812,7 +804,7 @@
 
 //   // --- EFFECT 2: SOCKET CONNECTION (Runs when User is set) ---
 //   useEffect(() => {
-//     if (!user?._id) return; 
+//     if (!user?._id) return;
 
 //     // Initialize Socket
 //     const newSocket = io(API_URL, { transports: ["websocket"] });
@@ -844,7 +836,7 @@
 //     newSocket.on("getMessage", (data: any) => {
 //       setMessages((prev: any) => {
 //         const chatId = data.sender === user._id ? data.receiver : data.sender;
-        
+
 //         const newMsg = {
 //           id: data._id,
 //           text: data.text,
@@ -875,11 +867,11 @@
 //         if (c.lastMessageDoc) {
 //           lastMsgType = c.lastMessageDoc.type || "text";
 //           lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
-//           lastMsgPreview = c.lastMessageDoc.sender === user._id 
-//             ? `You: ${c.lastMessageDoc.text}` 
+//           lastMsgPreview = c.lastMessageDoc.sender === user._id
+//             ? `You: ${c.lastMessageDoc.text}`
 //             : c.lastMessageDoc.text;
 //         }
-        
+
 //         const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
 //         const isOnline = new Date().getTime() - lastSeenDate.getTime() < 120000;
 
@@ -901,7 +893,7 @@
 //     return () => {
 //       newSocket.disconnect();
 //     };
-//   }, [user?._id, API_URL]); 
+//   }, [user?._id, API_URL]);
 
 //   // --- MESSAGE FETCHING ---
 //   const fetchMessages = useCallback(async (contactId: string) => {
@@ -945,7 +937,7 @@
 //     content: string,
 //     type = "text",
 //     callDetails: any = null,
-//     fileUrl: string | null = null 
+//     fileUrl: string | null = null
 //   ) => {
 //     if (!activeChatId || !user) return;
 //     const contact = contacts.find((c) => c.id === activeChatId);
@@ -958,7 +950,7 @@
 //       type,
 //       replyTo: replyingTo ? replyingTo.id : null,
 //       callDetails,
-//       fileUrl, 
+//       fileUrl,
 //     };
 
 //     try {
@@ -1029,7 +1021,7 @@
 //   const endCall = () => {
 //     if (activeChatId)
 //       socket.current?.emit("endCall", { targetId: activeChatId });
-    
+
 //     let durationStr = "00:00";
 //     if (callStatus === "connected" && callStartTime.current) {
 //       const diff = Math.floor((Date.now() - callStartTime.current) / 1000);
@@ -1167,11 +1159,7 @@
 //   };
 // };
 
-
-
-
 // ADDED 05 FEB 2026
-
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
@@ -1185,525 +1173,354 @@ export const useChat = () => {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>(INITIAL_CONTACTS);
   const [messages, setMessages] = useState<any>(INITIAL_MESSAGES);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
 
-  // UI State
+  // --- REFS (Performance & Stability) ---
+  const socket = useRef<any>(null);
+  // [CRITICAL] Allows accessing the active chat inside socket listeners without re-rendering/reconnecting
+  const activeChatIdRef = useRef<string | null>(null); 
+  const callStartTime = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<any>(null);
+
+  // --- UI STATE ---
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [previewProfile, setPreviewProfile] = useState<any>(null);
   const [detailedProfile, setDetailedProfile] = useState<any>(null);
-  const [currentThemeId, setCurrentThemeId] = useState(
-    () => localStorage.getItem("theme") || "light"
-  );
+  const [currentThemeId, setCurrentThemeId] = useState(() => localStorage.getItem("theme") || "light");
   const [searchTerm, setSearchTerm] = useState("");
   const [showSidebarMenu, setShowSidebarMenu] = useState(false);
 
-  // Input State
+  // --- INPUT & CALL STATE ---
   const [inputText, setInputText] = useState("");
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, any>>({});
   const [smartReplies] = useState<string[]>([]);
-
-  // Call State
-  const [callStatus, setCallStatus] = useState<
-    "idle" | "ringing" | "connected" | "ended" | "incoming"
-  >("idle");
+  const [callStatus, setCallStatus] = useState<"idle" | "ringing" | "connected" | "ended" | "incoming">("idle");
   const [callType, setCallType] = useState<"audio" | "video">("audio");
-
-  const socket = useRef<any>(null);
-  const callStartTime = useRef<number | null>(null);
 
   const theme = THEMES[currentThemeId as keyof typeof THEMES];
   const API_URL = BASE_URL;
 
-  const activeContact = useMemo(
-    () => contacts.find((c) => c.id === activeChatId),
-    [contacts, activeChatId]
-  );
+  // 1. SYNC REF WITH STATE
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
 
-  const handleUpdateContact = useCallback(
-    (updatedContact: any) => {
-      setContacts((prev) =>
-        prev.map((c) => (c.id === updatedContact.id ? updatedContact : c))
-      );
-      if (updatedContact.id === "me" || updatedContact.id === user?.id)
-        setUser((prev: any) => ({ ...prev, ...updatedContact }));
-      if (viewingProfile?.id === updatedContact.id)
-        setViewingProfile(updatedContact);
-      if (previewProfile?.id === updatedContact.id)
-        setPreviewProfile(updatedContact);
-      if (detailedProfile?.id === updatedContact.id)
-        setDetailedProfile(updatedContact);
-    },
-    [user, viewingProfile, previewProfile, detailedProfile]
-  );
+  const activeContact = useMemo(() => contacts.find((c) => c.id === activeChatId), [contacts, activeChatId]);
 
-  // --- EFFECT 1: AUTHENTICATION ---
+  const handleUpdateContact = useCallback((updatedContact: any) => {
+    setContacts((prev) => prev.map((c) => (c.id === updatedContact.id ? updatedContact : c)));
+    if (updatedContact.id === "me" || updatedContact.id === user?.id) setUser((prev: any) => ({ ...prev, ...updatedContact }));
+    if (viewingProfile?.id === updatedContact.id) setViewingProfile(updatedContact);
+  }, [user, viewingProfile]);
+
+  // --- 2. AUTHENTICATION & INITIAL LOAD ---
   useEffect(() => {
     let isMounted = true;
     const fetchUser = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/current_user`, {
-          credentials: "include",
-        });
+        const res = await fetch(`${API_URL}/api/current_user`, { credentials: "include" });
         if (res.ok) {
           const userData = await res.json();
           if (isMounted && userData && userData.googleId) {
             setUser({
-              id: userData._id,
-              _id: userData._id,
-              name: userData.displayName,
-              avatar: userData.avatar,
-              email: userData.email,
-              shareId: userData.shareId,
-              status: "online",
-              about: userData.bio || "Hey!",
-              isAI: false,
-              contacts: userData.contacts,
+              id: userData._id, _id: userData._id, name: userData.displayName, 
+              avatar: userData.avatar, email: userData.email, shareId: userData.shareId, 
+              status: "online", about: userData.bio || "Hey!", isAI: false, contacts: userData.contacts,
             });
           }
         }
-      } catch (err) {
-        console.error("Auth check failed:", err);
-      }
+      } catch (err) { console.error("Auth check failed:", err); }
     };
     fetchUser();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [API_URL]);
 
-  // --- EFFECT 2: SOCKET CONNECTION ---
+  // --- 3. SOCKET CONNECTION (Optimized) ---
   useEffect(() => {
     if (!user?._id) return;
 
+    // Connect ONLY once. Dependencies do NOT include activeChatId.
     const newSocket = io(API_URL, { transports: ["websocket"] });
     socket.current = newSocket;
     newSocket.emit("addUser", user._id);
 
-    // 1. Call Events
-    newSocket.on("incomingCall", ({ type }: any) => {
-      setCallStatus("incoming");
-      setCallType(type);
+    // [A] ONLINE STATUS & LAST SEEN LOGIC
+    newSocket.on("getUsers", (activeUsers: any[]) => {
+       const onlineIds = new Set(activeUsers.map(u => u.userId));
+       
+       setContacts(prevContacts => prevContacts.map(c => {
+          const isOnline = onlineIds.has(c.id);
+          let newStatus = "offline";
+          
+          // Logic: If they were Online and now match !isOnline, they just disconnected.
+          // Update their local lastSeen to NOW so the UI updates instantly.
+          let currentLastSeen = c.lastSeen;
+          if (!isOnline && c.status === "online") {
+             currentLastSeen = new Date().toISOString(); 
+          }
+
+          if (isOnline) {
+             newStatus = "online";
+          } else if (currentLastSeen) {
+             // Format: "last seen 10:30 PM"
+             const date = new Date(currentLastSeen);
+             const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+             newStatus = `last seen ${timeStr}`;
+          }
+
+          return { ...c, status: newStatus, lastSeen: currentLastSeen };
+       }));
     });
 
-    newSocket.on("callAccepted", () => {
-      setCallStatus("connected");
-      callStartTime.current = Date.now();
-    });
-
-    newSocket.on("callEnded", () => {
-      setCallStatus("ended");
-      setTimeout(() => setCallStatus("idle"), 1000);
-    });
-
-    newSocket.on("userOffline", () => {
-      alert("User is offline or not reachable!");
-      setCallStatus("idle");
-    });
-
-    // 2. Message Events
+    // [B] INCOMING MESSAGES
     newSocket.on("getMessage", (data: any) => {
+      const currentActiveId = activeChatIdRef.current; // Read Ref (Latest State)
+      const isChatOpen = currentActiveId === data.sender;
+
+      // 1. Auto-Mark Read
+      if (isChatOpen) {
+        newSocket.emit("markRead", { senderId: data.sender, receiverId: user._id });
+      }
+
+      const formattedTime = formatRelativeTime(data.timestamp);
+
+      // 2. Update Message List
       setMessages((prev: any) => {
         const chatId = data.sender === user._id ? data.receiver : data.sender;
         const newMsg = {
-          id: data._id,
-          text: data.text,
-          time: formatRelativeTime(data.timestamp),
-          sender: data.sender === user._id ? "me" : "them",
-          isRead: false,
-          status: "sent",
-          type:
-            data.type ||
-            (data.fileUrl
-              ? data.fileType?.startsWith("image")
-                ? "image"
-                : "file"
-              : "text"),
-          fileUrl: data.fileUrl ? `${API_URL}${data.fileUrl}` : undefined,
-          fileName: data.fileName || null,
-          replyTo: data.replyTo || null,
-          callDetails: data.callDetails || null,
+          ...data, id: data._id, time: formattedTime, sender: data.sender === user._id ? "me" : "them",
+          status: isChatOpen ? "read" : "delivered",
+          type: data.type || (data.fileUrl ? (data.fileType?.startsWith("image") ? "image" : "file") : "text"),
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+        return { ...prev, [chatId]: [...(prev[chatId] || []), newMsg] };
+      });
+
+      // 3. Update Contact List (Move to Top & Preview)
+      setContacts((prev) => {
+        const senderId = data.sender === user._id ? data.receiver : data.sender;
+        const contactIndex = prev.findIndex(c => c.id === senderId);
+        if (contactIndex === -1) return prev;
+
+        const updatedContact = {
+            ...prev[contactIndex],
+            lastMessage: data.type === 'image' ? '📷 Photo' : data.type === 'file' ? '📁 File' : data.text,
+            lastMessageTime: formattedTime,
+            unread: isChatOpen ? 0 : (prev[contactIndex].unread || 0) + 1
         };
 
-        return {
-          ...prev,
-          [chatId]: [...(prev[chatId] || []), newMsg],
-        };
+        const newContacts = [...prev];
+        newContacts.splice(contactIndex, 1); // Remove from old pos
+        newContacts.unshift(updatedContact); // Add to top
+        return newContacts;
       });
     });
 
-    // 3. Process Initial Contacts
-    if (user.contacts?.length > 0) {
-      const dbContacts = user.contacts.map((c: any) => {
-        let lastMsgPreview = "No messages yet",
-          lastMsgTime = "",
-          lastMsgType = "text";
-        if (c.lastMessageDoc) {
-          lastMsgType = c.lastMessageDoc.type || "text";
-          lastMsgTime = formatRelativeTime(c.lastMessageDoc.timestamp);
-          lastMsgPreview =
-            c.lastMessageDoc.sender === user._id
-              ? `You: ${c.lastMessageDoc.text}`
-              : c.lastMessageDoc.text;
-        }
-        const lastSeenDate = c.lastSeen ? new Date(c.lastSeen) : new Date(0);
-        const isOnline = new Date().getTime() - lastSeenDate.getTime() < 120000;
+    // [C] OTHER EVENTS
+    newSocket.on("messagesRead", ({ readerId }: any) => {
+      setMessages((prev: any) => ({
+        ...prev, [readerId]: prev[readerId]?.map((m: any) => 
+          (m.sender === "me" || m.senderId === user._id) ? { ...m, status: "read" } : m
+        ) || []
+      }));
+    });
 
-        return {
-          id: c._id,
-          name: c.displayName,
-          avatar: c.avatar,
-          status: isOnline ? "online" : "offline",
-          about: c.bio,
-          isAI: false,
-          lastMessage: lastMsgPreview,
-          lastMessageTime: lastMsgTime,
-          lastMessageType: lastMsgType,
-        };
-      });
-      setContacts([...INITIAL_CONTACTS, ...dbContacts]);
+    newSocket.on("messageUpdated", (updatedMsg: any) => {
+        setMessages((prev: any) => {
+            const chatId = updatedMsg.sender === user._id ? updatedMsg.receiver : updatedMsg.sender;
+            return { ...prev, [chatId]: prev[chatId]?.map((m: any) => m.id === updatedMsg._id ? { ...m, ...updatedMsg } : m) || [] };
+        });
+    });
+    newSocket.on("incomingCall", ({ type }: any) => { setCallStatus("incoming"); setCallType(type); });
+    newSocket.on("callAccepted", () => { setCallStatus("connected"); callStartTime.current = Date.now(); });
+    newSocket.on("callEnded", () => { setCallStatus("ended"); setTimeout(() => setCallStatus("idle"), 1000); });
+    newSocket.on("userTyping", ({ senderId }: any) => setTypingUsers((prev) => new Set(prev).add(senderId)));
+    newSocket.on("userStopTyping", ({ senderId }: any) => setTypingUsers((prev) => { const next = new Set(prev); next.delete(senderId); return next; }));
+
+    // [D] INITIAL CONTACT PROCESSING (Hydrate Last Seen)
+    if (user.contacts?.length > 0) {
+        setContacts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const dbContacts = user.contacts.map((c: any) => {
+                let initialStatus = "offline";
+                if (c.lastSeen) {
+                    const date = new Date(c.lastSeen);
+                    const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+                    initialStatus = `last seen ${timeStr}`;
+                }
+                return {
+                    id: c._id, name: c.displayName, avatar: c.avatar, 
+                    status: initialStatus, lastSeen: c.lastSeen,
+                    about: c.bio, isAI: false,
+                    lastMessage: c.lastMessageDoc ? (c.lastMessageDoc.sender === user._id ? `You: ${c.lastMessageDoc.text}` : c.lastMessageDoc.text) : "No messages yet",
+                    lastMessageTime: c.lastMessageDoc ? formatRelativeTime(c.lastMessageDoc.timestamp) : ""
+                };
+            }).filter((c:any) => !existingIds.has(c.id));
+            return [...prev, ...dbContacts];
+        });
     }
 
-    return () => {
-      newSocket.disconnect();
-    };
+    return () => { newSocket.disconnect(); };
   }, [user?._id, API_URL]);
 
-  // --- MESSAGE FETCHING ---
-  const fetchMessages = useCallback(
-    async (contactId: string) => {
-      if (!user || !contactId || contactId === "nebula-ai") return;
-      try {
-        const res = await fetch(`${API_URL}/api/messages/${contactId}`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const dbMessages = await res.json();
-          const formattedMessages = dbMessages.map((m: any) => ({
-            id: m._id,
-            senderId: m.sender,
-            text: m.text,
-            time: formatRelativeTime(m.timestamp),
-            sender: m.sender === user.id ? "me" : "them",
-            status: "read",
-            type:
-              m.type ||
-              (m.fileUrl
-                ? m.fileType?.startsWith("image")
-                  ? "image"
-                  : "file"
-                : "text"),
-            fileUrl: m.fileUrl ? `${API_URL}${m.fileUrl}` : undefined,
-            fileName: m.fileName,
-            callDetails: m.callDetails,
-            replyTo: m.replyTo,
-          }));
-
-          setMessages((prev: any) => {
-            const existing = prev[contactId] || [];
-            const existingIds = new Set(existing.map((m: any) => m.id));
-            const merged = [
-              ...existing,
-              ...formattedMessages.filter((m: any) => !existingIds.has(m.id)),
-            ];
-            return { ...prev, [contactId]: merged };
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    [user, API_URL]
-  );
-
+  // --- 4. FETCH MESSAGES & MARK READ ---
   useEffect(() => {
     if (!activeChatId || activeChatId === "nebula-ai") return;
-    fetchMessages(activeChatId);
-  }, [activeChatId, fetchMessages]);
 
-  // --- ACTIONS: SEND MESSAGE (OPTIMISTIC UI) ---
-  const handleSendMessage = useCallback(
-    async (
-      content: string,
-      type = "text",
-      callDetails: any = null,
-      fileUrl: string | null = null
-    ) => {
+    // Trigger Read Receipt on Open
+    if (socket.current) {
+        socket.current.emit("markRead", { senderId: activeChatId, receiverId: user?._id });
+        setContacts(prev => prev.map(c => c.id === activeChatId ? { ...c, unread: 0 } : c));
+    }
+
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/messages/${activeChatId}`, { credentials: "include" });
+        if (res.ok) {
+          const dbMessages = await res.json();
+           const formattedMessages = dbMessages.map((m: any) => ({
+            ...m, id: m._id, senderId: m.sender,
+            time: formatRelativeTime(m.timestamp),
+            sender: m.sender === user.id ? "me" : "them",
+            status: "read", // DB messages are implicitly read
+            type: m.type || "text",
+            fileUrl: m.fileUrl ? `${API_URL}${m.fileUrl}` : undefined,
+            timestamp: m.timestamp
+          }));
+          
+          setMessages((prev: any) => {
+            const existing = prev[activeChatId] || [];
+            const existingIds = new Set(existing.map((m: any) => m.id));
+            return { ...prev, [activeChatId]: [...existing, ...formattedMessages.filter((m: any) => !existingIds.has(m.id))] };
+          });
+        }
+      } catch (err) { console.error(err); }
+    };
+    fetchMessages();
+  }, [activeChatId, user?.id, API_URL]);
+
+  // --- 5. SEND MESSAGE (With Optimistic UI) ---
+  const handleSendMessage = useCallback(async (content: string, type = "text", callDetails: any = null, fileUrl: string | null = null) => {
       if (!activeChatId || !user) return;
-      const contact = contacts.find((c) => c.id === activeChatId);
-      if (contact?.isAI) return;
+      const timestamp = new Date().toISOString();
+      const formattedTime = formatRelativeTime(timestamp);
 
+      // Optimistic 1: Move Contact to Top
+      setContacts((prev) => {
+          const index = prev.findIndex(c => c.id === activeChatId);
+          if (index === -1) return prev;
+          const updated = { ...prev[index], lastMessage: `You: ${type === 'image' ? 'Image' : content}`, lastMessageTime: formattedTime };
+          const newArr = [...prev];
+          newArr.splice(index, 1);
+          newArr.unshift(updated);
+          return newArr;
+      });
+
+      // Optimistic 2: Update Chat Window
+      const tempId = `temp-${Date.now()}`;
       const newMsg = {
-        id: `temp-${Date.now()}`, // Temp ID for instant UI
-        sender: "me",
-        senderId: user.id,
-        text: content,
-        time: formatRelativeTime(new Date().toISOString()),
-        status: "sent",
-        type,
-        fileUrl,
-        callDetails,
-        replyTo: replyingTo ? replyingTo.id : null,
-        isRead: true,
+        id: tempId, sender: "me", senderId: user.id, text: content, time: formattedTime,
+        status: "sent", type, fileUrl, callDetails, replyTo: replyingTo ? replyingTo.id : null, isRead: false, timestamp
       };
+      setMessages((prev: any) => ({ ...prev, [activeChatId]: [...(prev[activeChatId] || []), newMsg] }));
 
-      // 1. Optimistic Update (Show immediately)
-      setMessages((prev: any) => ({
-        ...prev,
-        [activeChatId]: [...(prev[activeChatId] || []), newMsg],
-      }));
-
-      // Reset inputs immediately
-      if (type === "text") {
-        setInputText("");
-        setReplyingTo(null);
-        setDrafts((prev) => ({ ...prev, [activeChatId]: "" }));
-      }
+      if (type === "text") { setInputText(""); setReplyingTo(null); setDrafts(p => ({...p, [activeChatId]: ""})); }
 
       try {
         const res = await fetch(`${API_URL}/api/messages/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            sender: user.id,
-            receiverId: activeChatId,
-            text: content,
-            type,
-            replyTo: replyingTo ? replyingTo.id : null,
-            callDetails,
-            fileUrl,
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ sender: user.id, receiverId: activeChatId, text: content, type, replyTo: replyingTo?.id, callDetails, fileUrl }),
         });
-
         if (res.ok) {
-          // 2. Success: Update Temp ID with Server ID
           const savedMsg = await res.json();
+          // Update temp ID with real DB ID
           setMessages((prev: any) => ({
             ...prev,
-            [activeChatId]: prev[activeChatId].map((m: any) =>
-              m.id === newMsg.id
-                ? {
-                    ...m,
-                    id: savedMsg._id,
-                    time: formatRelativeTime(savedMsg.timestamp),
-                  }
-                : m
-            ),
+            [activeChatId]: prev[activeChatId].map((m: any) => m.id === tempId ? { ...m, id: savedMsg._id, status: 'sent', timestamp: savedMsg.timestamp } : m)
           }));
         }
       } catch (err) {
-        alert("Failed to send message.");
-        // 3. Failure: Rollback
-        setMessages((prev: any) => ({
-          ...prev,
-          [activeChatId]: prev[activeChatId].filter(
-            (m: any) => m.id !== newMsg.id
-          ),
-        }));
+          // Rollback on error
+          setMessages((prev: any) => ({ ...prev, [activeChatId]: prev[activeChatId].filter((m: any) => m.id !== tempId) }));
       }
-    },
-    [activeChatId, contacts, replyingTo, user, API_URL]
-  );
+  }, [activeChatId, replyingTo, user, API_URL]);
 
-  // --- ACTIONS: UPLOAD FILE ---
+  // --- OTHER ACTIONS ---
   const handleFileUpload = async (file: File) => {
     if (!activeChatId || !user) return;
-
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("sender", user.id);
-    formData.append("receiver", activeChatId);
-
+    formData.append("file", file); formData.append("sender", user.id); formData.append("receiver", activeChatId);
     try {
-      const response = await fetch(`${API_URL}/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
       const data = await response.json();
-
       if (data.success) {
         const fileType = file.type.startsWith("image") ? "image" : "file";
         await handleSendMessage(file.name, fileType, null, data.fileUrl);
       }
-    } catch (error) {
-      console.error("Error uploading file:", error);
-    }
+    } catch (error) { console.error("Error", error); }
   };
 
-  // --- ACTIONS: CALLS ---
-  const startCall = (type: "audio" | "video") => {
+  const startCall = (type: "audio" | "video") => { if (!activeChatId) return; setCallType(type); setCallStatus("ringing"); socket.current?.emit("callUser", { senderId: user.id, receiverId: activeChatId, type }); };
+  const endCall = () => { if (activeChatId) socket.current?.emit("endCall", { senderId: user.id, receiverId: activeChatId }); setCallStatus("ended"); setTimeout(() => setCallStatus("idle"), 1000); };
+  const answerCall = () => { setCallStatus("connected"); callStartTime.current = Date.now(); if (activeChatId) socket.current?.emit("answerCall", { senderId: user.id, receiverId: activeChatId }); };
+  
+  const sendTyping = (isTyping: boolean) => {
     if (!activeChatId) return;
-    setCallType(type);
-    setCallStatus("ringing");
-    socket.current?.emit("callUser", {
-      senderId: user.id,
-      receiverId: activeChatId,
-      type,
-    });
+    if (isTyping) { socket.current?.emit("typing", { receiverId: activeChatId }); if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = setTimeout(() => { socket.current?.emit("stopTyping", { receiverId: activeChatId }); }, 3000); } 
+    else { socket.current?.emit("stopTyping", { receiverId: activeChatId }); }
   };
 
-  const answerCall = () => {
-    setCallStatus("connected");
-    callStartTime.current = Date.now();
-    if (activeChatId)
-      socket.current?.emit("answerCall", {
-        senderId: user.id,
-        receiverId: activeChatId,
-      });
+  const deleteMessage = async (messageId: string, deleteType: "for-me" | "everyone") => {
+    if (!activeChatId) return;
+    try {
+      setMessages((prev: any) => ({
+        ...prev,
+        [activeChatId]: prev[activeChatId].map((m: any) => {
+            if (m.id !== messageId) return m;
+            if (deleteType === "for-me") return { ...m, hidden: true };
+            return { ...m, isDeleted: true, text: "This message was deleted", type: "text" };
+          }).filter((m: any) => !m.hidden),
+      }));
+      await fetch(`${API_URL}/api/messages/${messageId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ deleteType }) });
+    } catch (e) { console.error(e); }
   };
 
-  const endCall = () => {
-    if (activeChatId)
-      socket.current?.emit("endCall", {
-        senderId: user.id,
-        receiverId: activeChatId,
-      });
-
-    let durationStr = "00:00";
-    if (callStatus === "connected" && callStartTime.current) {
-      const diff = Math.floor((Date.now() - callStartTime.current) / 1000);
-      const mins = Math.floor(diff / 60)
-        .toString()
-        .padStart(2, "0");
-      const secs = (diff % 60).toString().padStart(2, "0");
-      durationStr = `${mins}:${secs}`;
-    }
-    const text = callType === "video" ? "Video Call" : "Audio Call";
-    const status = callStatus === "connected" ? "ended" : "missed";
-
-    handleSendMessage(text, "call", {
-      status,
-      duration: status === "missed" ? "" : durationStr,
-    });
-
-    setCallStatus("ended");
-    setTimeout(() => setCallStatus("idle"), 1000);
+  const reactToMessage = async (messageId: string, emoji: string) => {
+    if (!activeChatId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/${messageId}/reaction`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ emoji }) });
+      const updated = await res.json();
+      setMessages((prev: any) => ({
+        ...prev,
+        [activeChatId]: prev[activeChatId].map((m: any) => m.id === messageId ? { ...m, reactions: updated.reactions } : m),
+      }));
+    } catch (e) { console.error(e); }
   };
-
-  // --- ACTIONS: CONTACTS & PROFILE ---
-  const handleChatSelect = useCallback(
-    (newChatId: string | null) => {
-      if (activeChatId) {
-        setDrafts((prev) => ({ ...prev, [activeChatId]: inputText }));
-        setReplyDrafts((prev) => ({ ...prev, [activeChatId]: replyingTo }));
-      }
+  
+  const handleChatSelect = useCallback((newChatId: string | null) => {
+      if (activeChatId) { setDrafts((p) => ({ ...p, [activeChatId]: inputText })); setReplyDrafts((p) => ({ ...p, [activeChatId]: replyingTo })); }
       setActiveChatId(newChatId);
-      if (newChatId) {
-        setInputText(drafts[newChatId] || "");
-        setReplyingTo(replyDrafts[newChatId] || null);
-      } else {
-        setInputText("");
-        setReplyingTo(null);
-      }
-    },
-    [activeChatId, inputText, replyingTo, drafts, replyDrafts]
-  );
+      if (newChatId) { setInputText(drafts[newChatId] || ""); setReplyingTo(replyDrafts[newChatId] || null); } else { setInputText(""); setReplyingTo(null); }
+  }, [activeChatId, inputText, replyingTo, drafts, replyDrafts]);
 
-  const addContactByCode = useCallback(
-    async (shareCode: string) => {
-      try {
-        const res = await fetch(`${API_URL}/api/contacts/add`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ targetShareId: shareCode }),
-        });
-        if (res.ok) {
-          const newContact = await res.json();
-          setContacts((prev) => {
-            if (prev.find((c) => c.id === newContact._id)) return prev;
-            return [
-              ...prev,
-              {
-                id: newContact._id,
-                name: newContact.displayName,
-                avatar: newContact.avatar,
-                status: "offline",
-                about: newContact.bio,
-                isAI: false,
-              },
-            ];
-          });
-          alert(`Added ${newContact.displayName}!`);
-        } else {
-          alert("User not found");
-        }
-      } catch (e) {
-        alert("Connection error");
-      }
-    },
-    [API_URL]
-  );
+  const addContactByCode = useCallback(async (shareCode: string) => { try { const res = await fetch(`${API_URL}/api/contacts/add`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ targetShareId: shareCode }) }); if (res.ok) { const newContact = await res.json(); setContacts((prev) => [...prev, { id: newContact._id, name: newContact.displayName, avatar: newContact.avatar, status: "offline", about: newContact.bio, isAI: false }]); alert(`Added ${newContact.displayName}!`); } else { alert("User not found"); } } catch (e) { alert("Connection error"); } }, [API_URL]);
 
-  const updateMyProfile = useCallback(
-    async (updates: any) => {
+  const updateMyProfile = useCallback(async (updates: any): Promise<boolean> => {
       try {
         const res = await fetch(`${API_URL}/api/user/update`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(updates),
+          method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(updates),
         });
         if (res.ok) {
           const updatedData = await res.json();
-          setUser((prev: any) => ({
-            ...prev,
-            name: updatedData.displayName,
-            about: updatedData.bio,
-            avatar: updatedData.avatar,
-          }));
+          setUser((prev: any) => ({ ...prev, name: updatedData.displayName, about: updatedData.bio, avatar: updatedData.avatar }));
           return true;
-        } else {
-          return false;
-        }
-      } catch (err) {
-        return false;
-      }
-    },
-    [API_URL]
-  );
+        } else { return false; }
+      } catch (err) { console.error("Profile update failed:", err); return false; }
+    }, [API_URL]);
 
-  const toggleTheme = () => {
-    const newTheme = currentThemeId === "light" ? "dark" : "light";
-    setCurrentThemeId(newTheme);
-    localStorage.setItem("theme", newTheme);
-  };
+  const toggleTheme = () => { const newTheme = currentThemeId === "light" ? "dark" : "light"; setCurrentThemeId(newTheme); localStorage.setItem("theme", newTheme); };
 
-  return {
-    user,
-    setUser,
-    activeChatId,
-    setActiveChatId: handleChatSelect,
-    contacts,
-    messages: activeChatId ? messages[activeChatId] || [] : [],
-    theme,
-    toggleTheme,
-    inputText,
-    setInputText,
-    searchTerm,
-    setSearchTerm,
-    replyingTo,
-    setReplyingTo,
-    smartReplies,
-    activeContact,
-    handleSendMessage,
-    handleFileUpload,
-    addContactByCode,
-    updateMyProfile,
-    callStatus,
-    startCall,
-    endCall,
-    callType,
-    answerCall,
-    showSidebarMenu,
-    setShowSidebarMenu,
-    viewingProfile,
-    setViewingProfile,
-    previewProfile,
-    setPreviewProfile,
-    detailedProfile,
-    setDetailedProfile,
-    handleUpdateContact,
-  };
+  return { user, setUser, activeChatId, setActiveChatId: handleChatSelect, contacts, messages: activeChatId ? messages[activeChatId] || [] : [], theme, toggleTheme, inputText, setInputText, searchTerm, setSearchTerm, replyingTo, setReplyingTo, smartReplies, activeContact, handleSendMessage, handleFileUpload, addContactByCode, updateMyProfile, callStatus, startCall, endCall, callType, answerCall, showSidebarMenu, setShowSidebarMenu, viewingProfile, setViewingProfile, previewProfile, setPreviewProfile, detailedProfile, setDetailedProfile, handleUpdateContact, sendTyping, typingUsers, deleteMessage, reactToMessage };
 };

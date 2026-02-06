@@ -1256,9 +1256,7 @@ const multer = require("multer");
 const fs = require("fs");
 const { Server } = require("socket.io");
 const nodemailer = require("nodemailer");
-// Recommended for production security & performance
-// Run: npm install helmet compression
-const helmet = require("helmet"); 
+const helmet = require("helmet");
 const compression = require("compression");
 
 // --- ENVIRONMENT SETUP ---
@@ -1286,13 +1284,13 @@ const CLIENT_URL =
     : "http://localhost:5173";
 
 // --- MIDDLEWARE ---
-// 1. Security Headers (configured to allow images/media)
+// 1. Security Headers (Configured to allow Cross-Origin images/media)
 app.use(helmet({
-  crossOriginResourcePolicy: false, 
-  contentSecurityPolicy: false 
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Disabled for simplicity with external avatars/images
 }));
 
-// 2. Gzip Compression
+// 2. Gzip Compression (Faster load times)
 app.use(compression());
 
 // 3. CORS
@@ -1314,12 +1312,11 @@ console.log("⏳ Connecting to MongoDB...");
 
 mongoose
   .connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 5000, // Fail fast if DB is down
+    serverSelectionTimeoutMS: 5000,
   })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => {
     console.error("❌ MongoDB Connection Error:", err.message);
-    // Optional: process.exit(1) if you want the app to crash on DB fail
   });
 
 // --- SESSION CONFIG ---
@@ -1333,7 +1330,7 @@ app.use(
   })
 );
 
-// Passport Session Fix (Regenerate & Save)
+// Passport Session Fix (Regenerate session to prevent fixation attacks)
 app.use((req, res, next) => {
   if (req.session && !req.session.regenerate) {
     req.session.regenerate = (cb) => cb();
@@ -1360,6 +1357,7 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", UserSchema);
 
+// Message Schema: Includes Reactions, Soft Delete, AND Status
 const MessageSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   receiver: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -1377,9 +1375,22 @@ const MessageSchema = new mongoose.Schema({
   },
   timestamp: { type: Date, default: Date.now },
   replyTo: String,
+  isDeleted: { type: Boolean, default: false },
+  reactions: [
+    {
+      emoji: String,
+      user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    },
+  ],
+  // Read Receipt Status
+  status: { 
+    type: String, 
+    enum: ["sent", "delivered", "read"], 
+    default: "sent" 
+  }
 });
 
-// Indexes for fast message retrieval
+// Indexes for fast retrieval
 MessageSchema.index({ sender: 1, receiver: 1, timestamp: 1 });
 MessageSchema.index({ receiver: 1, sender: 1, timestamp: 1 });
 
@@ -1392,10 +1403,10 @@ const io = new Server(server, {
     methods: ["GET", "POST", "PUT"],
     credentials: true,
   },
-  pingTimeout: 60000, // Heartbeat setting
+  pingTimeout: 60000,
 });
 
-let onlineUsers = []; // In-memory store. Considerations: Redis for scaling.
+let onlineUsers = [];
 
 const getUser = (userId) => onlineUsers.find((user) => user.userId === userId.toString());
 
@@ -1403,10 +1414,29 @@ io.on("connection", (socket) => {
   // User Connects
   socket.on("addUser", (userId) => {
     if (!userId) return;
-    // Remove any existing socket for this user to prevent duplicates
     onlineUsers = onlineUsers.filter((user) => user.userId !== userId);
     onlineUsers.push({ userId, socketId: socket.id });
     io.emit("getUsers", onlineUsers);
+    socket.userId = userId;
+  });
+
+  // Read Receipts Logic (Blue Ticks)
+  socket.on("markRead", async ({ senderId, receiverId }) => {
+    try {
+      // 1. Update all unread messages in DB
+      await Message.updateMany(
+        { sender: senderId, receiver: receiverId, status: { $ne: "read" } },
+        { $set: { status: "read" } }
+      );
+      
+      // 2. Notify the Sender (so they see blue ticks immediately)
+      const senderSocket = getUser(senderId);
+      if (senderSocket) {
+        io.to(senderSocket.socketId).emit("messagesRead", { readerId: receiverId });
+      }
+    } catch (e) {
+      console.error("markRead Error:", e);
+    }
   });
 
   // Call Logic
@@ -1425,8 +1455,28 @@ io.on("connection", (socket) => {
     if (user) io.to(user.socketId).emit("callEnded");
   });
 
-  // User Disconnects
-  socket.on("disconnect", () => {
+  // Typing Logic
+  socket.on("typing", ({ receiverId }) => {
+    const user = getUser(receiverId);
+    if (user) io.to(user.socketId).emit("userTyping", { senderId: socket.userId });
+  });
+
+  socket.on("stopTyping", ({ receiverId }) => {
+    const user = getUser(receiverId);
+    if (user) io.to(user.socketId).emit("userStopTyping", { senderId: socket.userId });
+  });
+
+  // [OPTIMIZED] User Disconnects - Updates Last Seen
+  socket.on("disconnect", async () => {
+    const userEntry = onlineUsers.find((user) => user.socketId === socket.id);
+    if (userEntry) {
+        try {
+            // Update last seen in background
+            User.findByIdAndUpdate(userEntry.userId, { lastSeen: new Date() }).exec();
+        } catch (e) {
+            console.error("Error updating last seen on disconnect:", e);
+        }
+    }
     onlineUsers = onlineUsers.filter((user) => user.socketId !== socket.id);
     io.emit("getUsers", onlineUsers);
   });
@@ -1450,14 +1500,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
-// Optional: Verify Email on Startup
-if (process.env.EMAIL_USER) {
-  transporter.verify((error) => {
-    if (error) console.warn("⚠️ Email Service Warning:", error.message);
-    else console.log("✅ Email Server Ready");
-  });
-}
 
 // --- PASSPORT STRATEGY ---
 passport.use(
@@ -1487,30 +1529,22 @@ passport.use(
             shareId: generateShareId(),
           }).save();
 
-          // ⚡ OPTIMIZATION: Fire-and-forget email. 
-          // Do NOT await this. Let the user login immediately.
+          // Send Welcome Email (Styled)
           if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
             const mailOptions = {
               from: '"Nebula Chat" <' + process.env.EMAIL_USER + ">",
               to: user.email,
               subject: "Welcome to Nebula Chat! 🚀",
               html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; text-align: center;">
                   <h2 style="color: #673AB7;">Welcome, ${user.displayName}!</h2>
-                  <p>We are thrilled to have you on board. Your unique Share ID is:</p>
-                  <h3 style="background: #f4f4f4; padding: 10px; display: inline-block;">${user.shareId}</h3>
-                  <p>Share this ID with friends to start chatting!</p>
-                  <p>Best,<br/>The Nebula Team</p>
+                  <p>You can add friends using your unique Share ID:</p>
+                  <h3 style="background: #f4f4f4; padding: 15px; border-radius: 8px; display: inline-block; letter-spacing: 2px;">${user.shareId}</h3>
                 </div>
               `,
             };
-            
-            transporter.sendMail(mailOptions).catch(err => {
-                console.error("❌ Background Email Failed:", err.message);
-            });
+            transporter.sendMail(mailOptions).catch(err => console.error("Email Error:", err.message));
           }
-        } else {
-          console.log("👋 Existing user login:", user.displayName);
         }
         done(null, user);
       } catch (err) {
@@ -1548,34 +1582,21 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
 // --- API ROUTES ---
 
-// CAUTION: Dangerous Dev Route
-app.get("/api/nuke-db", async (req, res) => {
-  if (process.env.NODE_ENV === "production") return res.status(403).send("Forbidden in Prod");
-  try {
-    await Promise.all([User.deleteMany({}), Message.deleteMany({})]);
-    res.send("💥 Database nuked successfully.");
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
 // Auth Routes
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"], prompt: "select_account" }));
 app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/" }), (req, res) => res.redirect(CLIENT_URL));
-app.get("/api/logout", (req, res) => {
-  req.logout(() => res.redirect(CLIENT_URL));
-});
+app.get("/api/logout", (req, res) => { req.logout(() => res.redirect(CLIENT_URL)); });
 
-// User Data Route
+// User Data
 app.get("/api/current_user", async (req, res) => {
   if (!req.user) return res.status(401).send(null);
   
-  // Update last seen asynchronously
+  // Async update of lastSeen (don't await to speed up response)
   User.findByIdAndUpdate(req.user._id, { lastSeen: new Date() }).exec();
 
   const userDoc = await User.findById(req.user._id).populate("contacts").lean();
   
-  // Aggregation for last message per contact
+  // Efficient aggregation for last messages
   const lastMessagesAgg = await Message.aggregate([
     { $match: { $or: [{ sender: req.user._id }, { receiver: req.user._id }] } },
     { $sort: { timestamp: -1 } },
@@ -1603,9 +1624,7 @@ app.put("/api/user/update", async (req, res) => {
   try {
     const updated = await User.findByIdAndUpdate(req.user._id, req.body, { new: true });
     res.send(updated);
-  } catch (e) {
-    res.status(500).send(e.message);
-  }
+  } catch (e) { res.status(500).send(e.message); }
 });
 
 app.post("/api/contacts/add", async (req, res) => {
@@ -1617,11 +1636,10 @@ app.post("/api/contacts/add", async (req, res) => {
 
     await User.findByIdAndUpdate(req.user._id, { $addToSet: { contacts: userToAdd._id } });
     res.send(userToAdd);
-  } catch (e) {
-    res.status(500).send(e.message);
-  }
+  } catch (e) { res.status(500).send(e.message); }
 });
 
+// Send Message
 app.post("/api/messages/send", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   const { receiverId, text, type, fileUrl, fileName, callDetails, replyTo } = req.body;
@@ -1632,18 +1650,13 @@ app.post("/api/messages/send", async (req, res) => {
     const newMessage = await new Message({
       sender: req.user._id,
       receiver: receiverId,
-      text,
-      type,
-      fileUrl,
-      fileName,
-      callDetails,
-      replyTo,
+      text, type, fileUrl, fileName, callDetails, replyTo,
       timestamp: new Date(),
+      status: 'sent' // Default status
     }).save();
 
     res.send(newMessage);
 
-    // Real-time emit
     const receiverSocket = getUser(receiverId);
     if (receiverSocket) {
       io.to(receiverSocket.socketId).emit("getMessage", newMessage);
@@ -1654,6 +1667,48 @@ app.post("/api/messages/send", async (req, res) => {
   }
 });
 
+// Delete Message (Soft Delete)
+app.delete("/api/messages/:id", async (req, res) => {
+  if (!req.user) return res.status(401).send({ error: "Unauthorized" });
+  try {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).send({ error: "Not found" });
+    if (msg.sender.toString() !== req.user._id.toString()) return res.status(403).send({ error: "Not allowed" });
+
+    msg.isDeleted = true;
+    msg.text = "This message was deleted";
+    msg.type = "text";
+    msg.fileUrl = null;
+    await msg.save();
+
+    const receiverSocket = getUser(msg.receiver);
+    if (receiverSocket) io.to(receiverSocket.socketId).emit("messageUpdated", msg);
+
+    res.send(msg);
+  } catch (e) { res.status(500).send(e.message); }
+});
+
+// Reaction Logic
+app.post("/api/messages/:id/reaction", async (req, res) => {
+  if (!req.user) return res.status(401).send({ error: "Unauthorized" });
+  const { emoji } = req.body;
+  try {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).send({ error: "Not found" });
+
+    msg.reactions = msg.reactions.filter((r) => r.user.toString() !== req.user._id.toString());
+    if (emoji) msg.reactions.push({ emoji, user: req.user._id });
+    await msg.save();
+
+    const targetUserId = msg.receiver.toString() === req.user._id.toString() ? msg.sender : msg.receiver;
+    const socket = getUser(targetUserId);
+    if (socket) io.to(socket.socketId).emit("messageUpdated", msg);
+
+    res.send(msg);
+  } catch (e) { res.status(500).send(e.message); }
+});
+
+// Get Messages
 app.get("/api/messages/:contactId", async (req, res) => {
   if (!req.user) return res.status(401).send({ error: "Unauthorized" });
   try {
@@ -1664,9 +1719,7 @@ app.get("/api/messages/:contactId", async (req, res) => {
       ],
     }).sort({ timestamp: 1 });
     res.send(messages);
-  } catch (e) {
-    res.status(500).send(e.message);
-  }
+  } catch (e) { res.status(500).send(e.message); }
 });
 
 // Root Redirect
