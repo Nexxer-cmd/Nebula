@@ -1277,7 +1277,7 @@ const server = http.createServer(app);
 app.set("trust proxy", 1);
 
 // --- URL CONFIGURATION ---
-const PROD_FRONTEND = "";
+const PROD_FRONTEND = "https://nebula-1-dp0y.onrender.com";
 const CLIENT_URL =
   process.env.NODE_ENV === "production"
     ? PROD_FRONTEND
@@ -1507,7 +1507,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
+      callbackURL: process.env.GOOGLE_CLIENT_URI,
       proxy: true,
     },
     async (token, refToken, profile, done) => {
